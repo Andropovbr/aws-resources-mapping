@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from typing import List, Tuple, Dict
 from src.models import ResourceRecord, ApplicationCluster
 
@@ -57,6 +58,10 @@ def _infer_app_name(record: ResourceRecord) -> str:
             return app_name
     return "Infraestrutura Compartilhada"
 
+def generate_slug(text: str) -> str:
+    norm = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-zA-Z0-9]+", "-", norm.lower()).strip("-")
+
 def correlate_and_classify_resources(resources: List[ResourceRecord]) -> Tuple[List[ResourceRecord], List[ApplicationCluster]]:
     cluster_map: Dict[str, ApplicationCluster] = {}
 
@@ -76,7 +81,7 @@ def correlate_and_classify_resources(resources: List[ResourceRecord]) -> Tuple[L
                 if app_name not in cluster_map:
                     cluster_map[app_name] = ApplicationCluster(
                         name=app_name,
-                        slug=app_name.lower().replace(" / ", "-").replace(" ", "-"),
+                        slug=generate_slug(app_name),
                         resources=[]
                     )
                 cl = cluster_map[app_name]
@@ -85,14 +90,14 @@ def correlate_and_classify_resources(resources: List[ResourceRecord]) -> Tuple[L
                 # Link compute, load balancers, etc.
                 ident = rec.identifier
                 res_type = rec.resource_type.lower()
-                cfn_type = rec.cfn_resource_type
+                cfn_type = rec.cfn_resource_type.lower()
                 svc = rec.service.lower()
 
-                if "instance" in res_type:
+                if svc == "ec2" and "instance" in res_type:
                     cl.compute_instances.append(ident)
-                elif "loadbalancer" in res_type or "LoadBalancer" in cfn_type:
+                elif "loadbalancer" in res_type or "loadbalancer" in cfn_type:
                     cl.load_balancers.append(ident)
-                elif "targetgroup" in res_type or "TargetGroup" in cfn_type:
+                elif "targetgroup" in res_type or "targetgroup" in cfn_type:
                     cl.target_groups.append(ident)
                 elif svc in ("rds", "memorydb", "elasticache"):
                     cl.databases.append(ident)

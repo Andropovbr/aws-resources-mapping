@@ -1,6 +1,6 @@
 import pytest
 from src.models import ResourceRecord
-from src.correlator import correlate_and_classify_resources
+from src.correlator import correlate_and_classify_resources, generate_slug
 
 def test_governance_classification():
     records = [
@@ -253,3 +253,41 @@ def test_empty_resources():
     classified, clusters = correlate_and_classify_resources([])
     assert classified == []
     assert clusters == []
+
+def test_compute_instances_ec2_only():
+    records = [
+        ResourceRecord(
+            identifier="connect-instance-123",
+            arn="arn:aws:connect:ca-central-1:123:instance/connect-instance-123",
+            resource_type="connect:instance",
+            region="ca-central-1",
+            aws_account="123",
+            application_raw="canais-dig",
+            cfn_resource_type="AWS::Connect::Instance",
+            last_reported_at="2026-10-10",
+            service="connect",
+            tags="0"
+        ),
+        ResourceRecord(
+            identifier="i-valid-ec2-001",
+            arn="arn:aws:ec2:ca-central-1:123:instance/i-valid-ec2-001",
+            resource_type="ec2:instance",
+            region="ca-central-1",
+            aws_account="123",
+            application_raw="canais-dig",
+            cfn_resource_type="AWS::EC2::Instance",
+            last_reported_at="2026-10-10",
+            service="ec2",
+            tags="0"
+        )
+    ]
+    classified, clusters = correlate_and_classify_resources(records)
+    canais_cl = next(c for c in clusters if c.name == "Canais Digitais")
+    assert "i-valid-ec2-001" in canais_cl.compute_instances
+    assert "connect-instance-123" not in canais_cl.compute_instances
+
+def test_slug_generation_cleaning():
+    assert generate_slug("VDO & Promoção Digital") == "vdo-promocao-digital"
+    assert generate_slug("Elastic Beanstalk / Legado") == "elastic-beanstalk-legado"
+    assert generate_slug("WordPress / Blog") == "wordpress-blog"
+    assert generate_slug("App: Special @#$ Name!!") == "app-special-name"

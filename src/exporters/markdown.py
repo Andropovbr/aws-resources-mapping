@@ -43,6 +43,18 @@ def generate_markdown_report(data: InventoryReportData, output_file: str) -> str
             md.append(f"- **Buckets S3:** {', '.join(f'`{b}`' for b in cl.storage_buckets)}")
         md.append("")
 
+    shared_compute = [
+        r for r in data.all_resources
+        if r.macro_domain == "Infraestrutura Compartilhada"
+        and r.service.lower() == "ec2"
+        and "instance" in r.resource_type.lower()
+    ]
+    if shared_compute:
+        md.append("### Cargas de Computação Compartilhadas / A Auditar")
+        md.append(f"- **Total de Instâncias Não Associadas:** `{len(shared_compute)}`")
+        md.append(f"- **Instâncias EC2:** {', '.join(f'`{r.identifier}`' for r in shared_compute)}")
+        md.append("")
+
     # 4. Ações Prioritárias de Investigação
     md.append("## 4. Oportunidades Prioritárias de Otimização (Quick Wins)")
     investigate_items = [r for r in data.all_resources if "Investigar" in r.finops_suggestion and r.finops_cost_impact in ("Alto", "Médio")]

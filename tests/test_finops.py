@@ -190,3 +190,133 @@ def test_finops_additional_rules():
 
 def test_finops_empty_list():
     assert evaluate_finops_rules([]) == []
+
+def test_finops_test_resources_cost_impact():
+    records = [
+        ResourceRecord(
+            identifier="alb-teste-microservices",
+            arn="arn:aws:elasticloadbalancing:ca-central-1:123:loadbalancer/app/alb-teste-microservices/1",
+            resource_type="elasticloadbalancing:loadbalancer",
+            region="ca-central-1",
+            aws_account="123",
+            application_raw="-",
+            cfn_resource_type="AWS::ElasticLoadBalancingV2::LoadBalancer",
+            last_reported_at="2026-10-10",
+            service="elasticloadbalancing",
+            tags="0",
+            macro_domain="Aplicação"
+        ),
+        ResourceRecord(
+            identifier="test-ec2-worker",
+            arn="arn:aws:ec2:ca-central-1:123:instance/i-test001",
+            resource_type="ec2:instance",
+            region="ca-central-1",
+            aws_account="123",
+            application_raw="-",
+            cfn_resource_type="AWS::EC2::Instance",
+            last_reported_at="2026-10-10",
+            service="ec2",
+            tags="0",
+            macro_domain="Aplicação"
+        ),
+        ResourceRecord(
+            identifier="rds-dummy-db",
+            arn="arn:aws:rds:ca-central-1:123:db:rds-dummy-db",
+            resource_type="rds:db",
+            region="ca-central-1",
+            aws_account="123",
+            application_raw="-",
+            cfn_resource_type="AWS::RDS::DBInstance",
+            last_reported_at="2026-10-10",
+            service="rds",
+            tags="0",
+            macro_domain="Aplicação"
+        ),
+        ResourceRecord(
+            identifier="sample-s3-bucket",
+            arn="arn:aws:s3:::sample-s3-bucket",
+            resource_type="s3:bucket",
+            region="ca-central-1",
+            aws_account="123",
+            application_raw="-",
+            cfn_resource_type="AWS::S3::Bucket",
+            last_reported_at="2026-10-10",
+            service="s3",
+            tags="0",
+            macro_domain="Aplicação"
+        ),
+        ResourceRecord(
+            identifier="temp-sqs-queue",
+            arn="arn:aws:sqs:ca-central-1:123:temp-sqs-queue",
+            resource_type="sqs:queue",
+            region="ca-central-1",
+            aws_account="123",
+            application_raw="-",
+            cfn_resource_type="AWS::SQS::Queue",
+            last_reported_at="2026-10-10",
+            service="sqs",
+            tags="0",
+            macro_domain="Aplicação"
+        ),
+    ]
+
+    evaluated = evaluate_finops_rules(records)
+
+    alb = next(r for r in evaluated if r.identifier == "alb-teste-microservices")
+    assert alb.finops_suggestion == "Investigar (Possível Teste / Temporário)"
+    assert alb.finops_cost_impact == "Alto"
+
+    ec2 = next(r for r in evaluated if r.identifier == "test-ec2-worker")
+    assert ec2.finops_suggestion == "Investigar (Possível Teste / Temporário)"
+    assert ec2.finops_cost_impact == "Alto"
+
+    rds = next(r for r in evaluated if r.identifier == "rds-dummy-db")
+    assert rds.finops_suggestion == "Investigar (Possível Teste / Temporário)"
+    assert rds.finops_cost_impact == "Alto"
+
+    s3 = next(r for r in evaluated if r.identifier == "sample-s3-bucket")
+    assert s3.finops_suggestion == "Investigar (Possível Teste / Temporário)"
+    assert s3.finops_cost_impact == "Médio"
+
+    sqs = next(r for r in evaluated if r.identifier == "temp-sqs-queue")
+    assert sqs.finops_suggestion == "Investigar (Possível Teste / Temporário)"
+    assert sqs.finops_cost_impact == "Baixo/Zero"
+
+def test_finops_case_insensitivity():
+    records = [
+        ResourceRecord(
+            identifier="my-alb",
+            arn="arn:aws:elasticloadbalancing:ca-central-1:123:loadbalancer/app/my-alb/1",
+            resource_type="ELASTICLOADBALANCING:LOADBALANCER",
+            region="ca-central-1",
+            aws_account="123",
+            application_raw="-",
+            cfn_resource_type="AWS::ELASTICLOADBALANCINGV2::LOADBALANCER",
+            last_reported_at="2026-10-10",
+            service="ELASTICLOADBALANCING",
+            tags="0",
+            macro_domain="Aplicação"
+        ),
+        ResourceRecord(
+            identifier="eipalloc-case",
+            arn="arn:aws:ec2:ca-central-1:123:elastic-ip/eipalloc-case",
+            resource_type="EC2:ELASTIC-IP",
+            region="ca-central-1",
+            aws_account="123",
+            application_raw="-",
+            cfn_resource_type="AWS::EC2::EIP",
+            last_reported_at="2026-10-10",
+            service="EC2",
+            tags="0",
+            macro_domain="Infraestrutura Compartilhada"
+        ),
+    ]
+
+    evaluated = evaluate_finops_rules(records)
+    alb = next(r for r in evaluated if r.identifier == "my-alb")
+    assert alb.finops_suggestion == "Investigar (Possível Órfão / Ocioso)"
+    assert alb.finops_cost_impact == "Alto"
+
+    eip = next(r for r in evaluated if r.identifier == "eipalloc-case")
+    assert eip.finops_suggestion == "Investigar (Possível Órfão / Ocioso)"
+    assert eip.finops_cost_impact == "Médio"

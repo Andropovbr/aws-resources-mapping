@@ -48,6 +48,43 @@ def test_main_cli(tmp_path: Path, monkeypatch):
     assert (out_dir / "inventario_test-account.xlsx").exists()
     assert (out_dir / "relatorio_test-account.md").exists()
 
+def test_main_cli_default_account_autodetect(tmp_path: Path, monkeypatch):
+    csv_file = tmp_path / "resources.csv"
+    header = "Identificador,ARN,Tipo de recurso,Região,Conta da AWS,Aplicação,CfnResourceType,LastReportedAt,Serviço,Tags\n"
+    row = "alb-test,arn:aws:elasticloadbalancing:ca-central-1:807445251352:loadbalancer/app/alb-test/1,elasticloadbalancing:loadbalancer,ca-central-1,807445251352,-,AWS::ElasticLoadBalancingV2::LoadBalancer,2026-10-10,elasticloadbalancing,0\n"
+    csv_file.write_text(header + row, encoding="utf-8")
+    
+    out_dir = tmp_path / "output"
+    test_args = [
+        "src/main.py",
+        "--input-dir", str(tmp_path),
+        "--output-dir", str(out_dir)
+    ]
+    monkeypatch.setattr(sys, "argv", test_args)
+    main()
+    
+    assert (out_dir / "inventario_807445251352.xlsx").exists()
+    assert (out_dir / "relatorio_807445251352.md").exists()
+
+def test_main_cli_account_sanitization(tmp_path: Path, monkeypatch):
+    csv_file = tmp_path / "resources.csv"
+    header = "Identificador,ARN,Tipo de recurso,Região,Conta da AWS,Aplicação,CfnResourceType,LastReportedAt,Serviço,Tags\n"
+    row = "alb-test,arn:aws:elasticloadbalancing:ca-central-1:12345:loadbalancer/app/alb-test/1,elasticloadbalancing:loadbalancer,ca-central-1,12345,-,AWS::ElasticLoadBalancingV2::LoadBalancer,2026-10-10,elasticloadbalancing,0\n"
+    csv_file.write_text(header + row, encoding="utf-8")
+    
+    out_dir = tmp_path / "output"
+    test_args = [
+        "src/main.py",
+        "--input-dir", str(tmp_path),
+        "--output-dir", str(out_dir),
+        "--account", "acct/prod:team*1"
+    ]
+    monkeypatch.setattr(sys, "argv", test_args)
+    main()
+    
+    assert (out_dir / "inventario_acct_prod_team_1.xlsx").exists()
+    assert (out_dir / "relatorio_acct_prod_team_1.md").exists()
+
 def test_main_cli_error_exit(tmp_path: Path, monkeypatch):
     empty_in = tmp_path / "empty_dir"
     empty_in.mkdir()

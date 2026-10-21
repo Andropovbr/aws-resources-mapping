@@ -12,7 +12,7 @@ def _read_csv_with_fallback(file_path: Path) -> List[Dict[str, str]]:
     encodings = ["utf-8-sig", "utf-8", "iso-8859-1", "cp1252"]
     for enc in encodings:
         try:
-            with open(file_path, "r", encoding=enc) as f:
+            with open(file_path, "r", encoding=enc, newline="") as f:
                 reader = csv.DictReader(f)
                 return list(reader)
         except (UnicodeDecodeError, UnicodeError):

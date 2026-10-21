@@ -1,4 +1,5 @@
 import argparse
+import re
 import sys
 from pathlib import Path
 from collections import Counter
@@ -49,7 +50,7 @@ def run_pipeline(input_dir: str, output_dir: str, account: str = "") -> Tuple[st
         all_resources=resources
     )
 
-    clean_account_name = account_id.replace(" ", "_")
+    clean_account_name = re.sub(r'[^\w\-.]', '_', account_id)
     excel_file = str(out_path / f"inventario_{clean_account_name}.xlsx")
     md_file = str(out_path / f"relatorio_{clean_account_name}.md")
 
@@ -66,7 +67,7 @@ def main():
     parser = argparse.ArgumentParser(description="Mapeador de Recursos AWS e FinOps Pipeline")
     parser.add_argument("--input-dir", default="./", help="Diretório contendo os arquivos CSV de exportação")
     parser.add_argument("--output-dir", default="./output", help="Diretório de saída para os relatórios gerados")
-    parser.add_argument("--account", default="multicanais-dev", help="Nome ou ID da conta AWS para titulação")
+    parser.add_argument("--account", default="", help="Nome ou ID da conta AWS para titulação (se omitido, autodetecta da coluna 'Conta da AWS')")
     args = parser.parse_args()
 
     try:
