@@ -1,5 +1,12 @@
 import pytest
-from src.models import ResourceRecord, ApplicationCluster, InventoryReportData
+from src.models import (
+    ResourceRecord,
+    ApplicationCluster,
+    InventoryReportData,
+    PlaybookGuide,
+    FinOpsOpportunity,
+    FinOpsAnalysisResult,
+)
 
 def test_resource_record_defaults():
     record = ResourceRecord(
@@ -16,6 +23,7 @@ def test_resource_record_defaults():
         source_files=["ec2.csv"]
     )
     assert record.identifier == "i-123456"
+    assert record.resource_name == "-"
     assert record.macro_domain == "A Classificar"
     assert record.inferred_app == "Não Identificado"
     assert record.finops_suggestion == "Avaliar"
@@ -54,3 +62,47 @@ def test_inventory_report_data_initialization():
     assert report.account_id == "123456789012"
     assert report.total_resources == 1
     assert report.regions == {"ca-central-1": 1}
+
+def test_finops_opportunity_models():
+    guide = PlaybookGuide(
+        playbook_id="pb-ec2-rightsizing",
+        title="Playbook 1: EC2 Right-sizing",
+        target_metric="CPUUtilization < 10%",
+        target_resources=["i-090d9b01ccf2af5ae"],
+        console_path="CloudWatch > Metrics > EC2",
+        aws_cli_command="aws cloudwatch get-metric-statistics ...",
+        decision_criteria="Se CPU < 10%, reduzir instância",
+        recommended_action="Fazer downgrade de t3.large para t3.small"
+    )
+    assert guide.playbook_id == "pb-ec2-rightsizing"
+    assert len(guide.target_resources) == 1
+
+    opp = FinOpsOpportunity(
+        pillar="Superdimensionamento",
+        title="Desproporção de ALBs vs Instâncias EC2",
+        description="9 ALBs para 2 instâncias EC2 mapeadas",
+        evidence_status="[AÇÃO IMEDIATA]",
+        effort_level="Baixo (Quick Win)",
+        impact_level="Alto",
+        estimated_monthly_savings_usd=157.5,
+        affected_resources_count=9,
+        resource_identifiers=["app/Docker-dev/6de4d3f3d608fb4c"],
+        playbook_id=None
+    )
+    assert opp.pillar == "Superdimensionamento"
+    assert opp.estimated_monthly_savings_usd == 157.5
+
+    result = FinOpsAnalysisResult(
+        account_id="multicanais-dev",
+        total_opportunities=1,
+        immediate_actions_count=1,
+        needs_analysis_count=0,
+        total_estimated_monthly_savings_usd=157.5,
+        pillar_consumption_opportunities=[],
+        pillar_rightsizing_opportunities=[opp],
+        pillar_cost_reduction_opportunities=[],
+        playbooks=[guide]
+    )
+    assert result.total_opportunities == 1
+    assert len(result.playbooks) == 1
+
