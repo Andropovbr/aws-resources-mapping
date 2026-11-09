@@ -11,14 +11,20 @@ def test_run_pipeline_end_to_end(tmp_path: Path):
     
     out_dir = tmp_path / "output"
     
-    excel_path, md_path = run_pipeline(
+    excel_path, md_path, finops_path = run_pipeline(
         input_dir=str(tmp_path),
         output_dir=str(out_dir),
-        account="multicanais-dev"
+        account="testaccount"
     )
     
     assert Path(excel_path).exists()
     assert Path(md_path).exists()
+    assert Path(finops_path).exists()
+    assert Path(finops_path).name == "relatorio_oportunidades_finops_testaccount.md"
+    opp_content = Path(finops_path).read_text(encoding="utf-8")
+    assert "Relatório Executivo de Oportunidades FinOps" in opp_content
+    assert "Scorecard Executivo & Impacto Financeiro" in opp_content
+    assert "Playbooks Práticos de Investigação" in opp_content
 
 def test_run_pipeline_empty_dir_raises_error(tmp_path: Path):
     out_dir = tmp_path / "output"
@@ -47,6 +53,7 @@ def test_main_cli(tmp_path: Path, monkeypatch):
     
     assert (out_dir / "inventario_test-account.xlsx").exists()
     assert (out_dir / "relatorio_test-account.md").exists()
+    assert (out_dir / "relatorio_oportunidades_finops_test-account.md").exists()
 
 def test_main_cli_default_account_autodetect(tmp_path: Path, monkeypatch):
     csv_file = tmp_path / "resources.csv"
@@ -65,6 +72,7 @@ def test_main_cli_default_account_autodetect(tmp_path: Path, monkeypatch):
     
     assert (out_dir / "inventario_807445251352.xlsx").exists()
     assert (out_dir / "relatorio_807445251352.md").exists()
+    assert (out_dir / "relatorio_oportunidades_finops_807445251352.md").exists()
 
 def test_main_cli_account_sanitization(tmp_path: Path, monkeypatch):
     csv_file = tmp_path / "resources.csv"
@@ -84,6 +92,7 @@ def test_main_cli_account_sanitization(tmp_path: Path, monkeypatch):
     
     assert (out_dir / "inventario_acct_prod_team_1.xlsx").exists()
     assert (out_dir / "relatorio_acct_prod_team_1.md").exists()
+    assert (out_dir / "relatorio_oportunidades_finops_acct_prod_team_1.md").exists()
 
 def test_main_cli_error_exit(tmp_path: Path, monkeypatch):
     empty_in = tmp_path / "empty_dir"
