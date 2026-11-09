@@ -70,13 +70,13 @@ def generate_excel_workbook(data: InventoryReportData, output_file: str) -> None
         ws = wb.create_sheet(title=sheet_name)
         if is_finops_action:
             headers = [
-                "Identificador", "Serviço", "Região", "Aplicação Inferida",
+                "Identificador", "Nome do Recurso", "Serviço", "Região", "Aplicação Inferida",
                 "Sugestão FinOps", "Impacto de Custo", "Justificativa da Sugestão",
                 "Decisão do Time (Manter/Deletar/Em Análise)", "Responsável", "Observações do Time"
             ]
         else:
             headers = [
-                "Identificador", "ARN", "Tipo de Recurso", "Região", "Serviço",
+                "Identificador", "Nome do Recurso", "ARN", "Tipo de Recurso", "Região", "Serviço",
                 "Domínio", "Aplicação Inferida", "Sugestão FinOps", "Impacto", "Arquivos de Origem"
             ]
         
@@ -86,13 +86,13 @@ def generate_excel_workbook(data: InventoryReportData, output_file: str) -> None
         for r in records:
             if is_finops_action:
                 ws.append([
-                    r.identifier, r.service, r.region, r.inferred_app,
+                    r.identifier, r.resource_name, r.service, r.region, r.inferred_app,
                     r.finops_suggestion, r.finops_cost_impact, r.finops_rationale,
                     "", "", ""
                 ])
             else:
                 ws.append([
-                    r.identifier, r.arn, r.cfn_resource_type or r.resource_type, r.region, r.service,
+                    r.identifier, r.resource_name, r.arn, r.cfn_resource_type or r.resource_type, r.region, r.service,
                     r.macro_domain, r.inferred_app, r.finops_suggestion, r.finops_cost_impact,
                     ", ".join(r.source_files)
                 ])

@@ -43,6 +43,11 @@ def generate_markdown_report(data: InventoryReportData, output_file: str) -> str
             md.append(f"- **Buckets S3:** {', '.join(f'`{b}`' for b in cl.storage_buckets)}")
         md.append("")
 
+    def _format_resource_label(r) -> str:
+        if r.resource_name and r.resource_name != "-" and r.resource_name != r.identifier:
+            return f"{r.resource_name} ({r.identifier})"
+        return r.identifier
+
     shared_compute = [
         r for r in data.all_resources
         if r.macro_domain == "Infraestrutura Compartilhada"
@@ -52,17 +57,18 @@ def generate_markdown_report(data: InventoryReportData, output_file: str) -> str
     if shared_compute:
         md.append("### Cargas de Computação Compartilhadas / A Auditar")
         md.append(f"- **Total de Instâncias Não Associadas:** `{len(shared_compute)}`")
-        md.append(f"- **Instâncias EC2:** {', '.join(f'`{r.identifier}`' for r in shared_compute)}")
+        md.append(f"- **Instâncias EC2:** {', '.join(f'`{_format_resource_label(r)}`' for r in shared_compute)}")
         md.append("")
 
     # 4. Ações Prioritárias de Investigação
     md.append("## 4. Oportunidades Prioritárias de Otimização (Quick Wins)")
     investigate_items = [r for r in data.all_resources if "Investigar" in r.finops_suggestion and r.finops_cost_impact in ("Alto", "Médio")]
     if investigate_items:
-        md.append("| Recurso | Tipo / Serviço | Região | Impacto | Justificativa |")
-        md.append("| :--- | :--- | :--- | :--- | :--- |")
+        md.append("| Recurso | Nome | Tipo / Serviço | Região | Impacto | Justificativa |")
+        md.append("| :--- | :--- | :--- | :--- | :--- | :--- |")
         for r in investigate_items[:20]:
-            md.append(f"| `{r.identifier}` | `{r.cfn_resource_type or r.resource_type}` | `{r.region}` | **{r.finops_cost_impact}** | {r.finops_rationale} |")
+            name_val = f"`{r.resource_name}`" if r.resource_name != "-" else "-"
+            md.append(f"| `{r.identifier}` | {name_val} | `{r.cfn_resource_type or r.resource_type}` | `{r.region}` | **{r.finops_cost_impact}** | {r.finops_rationale} |")
         if len(investigate_items) > 20:
             md.append(f"\n*(Mostrando 20 de {len(investigate_items)} itens de atenção; veja lista completa na planilha Excel)*")
     else:

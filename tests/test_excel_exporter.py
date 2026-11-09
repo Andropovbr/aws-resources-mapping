@@ -63,6 +63,7 @@ def test_excel_sheet_contents_and_filtering(tmp_path: Path):
         last_reported_at="2026-10-10",
         service="ec2",
         tags="env=prod",
+        resource_name="web-frontend",
         source_files=["ec2.csv"],
         macro_domain="Aplicação",
         inferred_app="Portal",
@@ -141,37 +142,45 @@ def test_excel_sheet_contents_and_filtering(tmp_path: Path):
     ws_finops = wb["FinOps & Ações do Time"]
     finops_rows = list(ws_finops.iter_rows(values_only=True))
     assert finops_rows[0][0] == "Identificador"
-    assert finops_rows[0][7] == "Decisão do Time (Manter/Deletar/Em Análise)"
-    assert finops_rows[0][8] == "Responsável"
-    assert finops_rows[0][9] == "Observações do Time"
+    assert finops_rows[0][1] == "Nome do Recurso"
+    assert finops_rows[0][8] == "Decisão do Time (Manter/Deletar/Em Análise)"
+    assert finops_rows[0][9] == "Responsável"
+    assert finops_rows[0][10] == "Observações do Time"
     assert len(finops_rows) == 2  # 1 header + 1 record (r1)
     assert finops_rows[1][0] == "app-ec2-1"
-    assert finops_rows[1][7] in (None, "")
+    assert finops_rows[1][1] == "web-frontend"
     assert finops_rows[1][8] in (None, "")
     assert finops_rows[1][9] in (None, "")
+    assert finops_rows[1][10] in (None, "")
 
     # 3. Aplicações & Compute (r1 has macro_domain="Aplicação" and service="ec2")
     ws_app = wb["Aplicações & Compute"]
     app_rows = list(ws_app.iter_rows(values_only=True))
     assert len(app_rows) == 2  # header + r1
+    assert app_rows[0][1] == "Nome do Recurso"
     assert app_rows[1][0] == "app-ec2-1"
+    assert app_rows[1][1] == "web-frontend"
 
     # 4. Bancos & Armazenamento (r2 has service="rds")
     ws_storage = wb["Bancos & Armazenamento"]
     storage_rows = list(ws_storage.iter_rows(values_only=True))
     assert len(storage_rows) == 2  # header + r2
+    assert storage_rows[0][1] == "Nome do Recurso"
     assert storage_rows[1][0] == "prod-db"
 
     # 5. Governança & Segurança (r3 has macro_domain="Governança")
     ws_gov = wb["Governança & Segurança"]
     gov_rows = list(ws_gov.iter_rows(values_only=True))
     assert len(gov_rows) == 2  # header + r3
+    assert gov_rows[0][1] == "Nome do Recurso"
     assert gov_rows[1][0] == "cw-alarm-1"
 
     # 6. Inventário Geral (all 3 records)
     ws_geral = wb["Inventário Geral"]
     geral_rows = list(ws_geral.iter_rows(values_only=True))
     assert len(geral_rows) == 4  # header + 3 records
+    assert geral_rows[0][1] == "Nome do Recurso"
+    assert geral_rows[1][1] == "web-frontend"
 
 
 def test_excel_workbook_empty_data(tmp_path: Path):

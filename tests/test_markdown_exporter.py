@@ -97,7 +97,7 @@ def test_markdown_report_investigate_items_truncation(tmp_path: Path):
     content = generate_markdown_report(data, str(out_file))
 
     assert out_file.exists()
-    assert "| Recurso | Tipo / Serviço | Região | Impacto | Justificativa |" in content
+    assert "| Recurso | Nome | Tipo / Serviço | Região | Impacto | Justificativa |" in content
     assert "res-00" in content
     assert "res-19" in content
     assert "*(Mostrando 20 de 25 itens de atenção; veja lista completa na planilha Excel)*" in content
@@ -137,3 +137,39 @@ def test_markdown_report_shared_ec2_instances(tmp_path: Path):
 
     assert "### Cargas de Computação Compartilhadas / A Auditar" in content
     assert "i-090d9b01ccf2af5ae" in content
+
+def test_markdown_report_shared_ec2_instances_with_name(tmp_path: Path):
+    rec_ec2 = ResourceRecord(
+        identifier="i-090d9b01ccf2af5ae",
+        arn="arn:aws:ec2:ca-central-1:123:instance/i-090d9b01ccf2af5ae",
+        resource_type="ec2:instance",
+        region="ca-central-1",
+        aws_account="123",
+        application_raw="-",
+        cfn_resource_type="AWS::EC2::Instance",
+        last_reported_at="2026-10-10",
+        service="ec2",
+        tags="0",
+        resource_name="docker-host-dev",
+        macro_domain="Infraestrutura Compartilhada",
+        inferred_app="Infraestrutura Compartilhada",
+        finops_suggestion="Manter (Em Operação)",
+        finops_cost_impact="Baixo/Zero",
+        finops_rationale="Recurso de infraestrutura compartilhada"
+    )
+    data = InventoryReportData(
+        account_id="123",
+        total_resources=1,
+        unique_arns=1,
+        regions={"ca-central-1": 1},
+        services={"ec2": 1},
+        macro_domains={"Infraestrutura Compartilhada": 1},
+        finops_summary={"Manter (Em Operação)": 1},
+        clusters=[],
+        all_resources=[rec_ec2]
+    )
+
+    out_file = tmp_path / "relatorio_named_ec2.md"
+    content = generate_markdown_report(data, str(out_file))
+
+    assert "docker-host-dev (i-090d9b01ccf2af5ae)" in content
