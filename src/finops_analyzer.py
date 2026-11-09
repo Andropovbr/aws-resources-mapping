@@ -253,6 +253,23 @@ def analyze_finops_opportunities(report_data: InventoryReportData) -> FinOpsAnal
         recommended_action="Excluir snapshots legados e configurar regra de ciclo de vida automática no AWS Backup."
     ))
 
+    # Playbook 5: Auditoria e Limpeza de Recursos em Regiões Secundárias
+    if total_foreign > 0:
+        sample_foreign_region = sorted(foreign_regions.keys())[0]
+        playbooks.append(PlaybookGuide(
+            playbook_id="pb-cross-region-cleanup",
+            title="Playbook 5: Auditoria de Recursos em Regiões Secundárias",
+            target_metric="Recursos provisionados em regiões fora do escopo principal do projeto",
+            target_resources=sorted(foreign_regions.keys()),
+            console_path="AWS Console > AWS Tag Editor / Resource Groups (All Regions)",
+            aws_cli_command=(
+                f"# Listar recursos com tags ou stacks ativas na região secundária ({sample_foreign_region}):\n"
+                f"aws resourcegroupstaggingapi get-resources --region {sample_foreign_region} --query 'ResourceTagMappingList[*].ResourceARN' --output table"
+            ),
+            decision_criteria="Se os recursos forem resíduos de testes antigos ou sem tráfego.",
+            recommended_action="Encerrar recursos órfãos na região secundária e aplicar SCP via AWS Organizations bloqueando regiões não autorizadas."
+        ))
+
     all_opps = consumption_opps + rightsizing_opps + reduction_opps
     immediate = sum(1 for o in all_opps if o.evidence_status == "[AÇÃO IMEDIATA]")
     needs_analysis = sum(1 for o in all_opps if o.evidence_status == "[NECESSITA ANÁLISE]")
