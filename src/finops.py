@@ -2,7 +2,25 @@ import re
 from typing import List
 from src.models import ResourceRecord
 
-TEST_KEYWORDS = [r"teste", r"test\b", r"temp", r"dummy", r"sample"]
+TEST_PATTERNS = [
+    r"teste",
+    r"\btest\b",
+    r"\btest[-_]",
+    r"[-_]test\b",
+    r"\btemp\b",
+    r"\btemp[-_]",
+    r"[-_]temp\b",
+    r"\bdummy\b",
+    r"\bsample\b",
+]
+
+def is_test_resource(identifier: str) -> bool:
+    ident_lower = identifier.lower()
+    if "$latest" in ident_lower or "latest" in ident_lower:
+        return False
+    if "template" in ident_lower:
+        return False
+    return any(re.search(pat, ident_lower) for pat in TEST_PATTERNS)
 
 def evaluate_finops_rules(resources: List[ResourceRecord]) -> List[ResourceRecord]:
     for rec in resources:
@@ -19,8 +37,7 @@ def evaluate_finops_rules(resources: List[ResourceRecord]) -> List[ResourceRecor
             continue
 
         # 2. Testes / Temporários
-        is_test = any(re.search(pat, ident_lower) for pat in TEST_KEYWORDS)
-        if is_test:
+        if is_test_resource(rec.identifier):
             rec.finops_suggestion = "Investigar (Possível Teste / Temporário)"
             rec.finops_cost_impact = "Alto" if svc_lower in ("elasticloadbalancing", "ec2", "rds") else ("Médio" if svc_lower == "s3" else "Baixo/Zero")
             rec.finops_rationale = "Nome do recurso indica criação pontual para teste/validação; verificar se o teste já foi finalizado para exclusão."

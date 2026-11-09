@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 from src.models import (
     ResourceRecord,
@@ -7,6 +8,7 @@ from src.models import (
     FinOpsOpportunity,
     FinOpsAnalysisResult
 )
+from src.finops import is_test_resource
 
 def analyze_finops_opportunities(report_data: InventoryReportData) -> FinOpsAnalysisResult:
     consumption_opps: List[FinOpsOpportunity] = []
@@ -20,12 +22,20 @@ def analyze_finops_opportunities(report_data: InventoryReportData) -> FinOpsAnal
     # 1. Separar recursos-chave
     ec2_instances = [r for r in resources if r.service.lower() == "ec2" and "instance" in r.resource_type.lower()]
     albs = [r for r in resources if r.service.lower() == "elasticloadbalancing" and "loadbalancer" in r.resource_type.lower()]
-    rds_instances = [r for r in resources if r.service.lower() == "rds" and "dbinstance" in r.resource_type.lower()]
+    rds_instances = [
+        r for r in resources
+        if r.service.lower() == "rds"
+        and (
+            "dbinstance" in (r.resource_type or "").lower()
+            or (r.resource_type or "").lower() == "rds:db"
+            or "dbinstance" in (r.cfn_resource_type or "").lower()
+        )
+    ]
     eips = [r for r in resources if "eip" in r.resource_type.lower() or "elastic-ip" in r.resource_type.lower()]
     snapshots = [r for r in resources if "snapshot" in r.resource_type.lower()]
     test_resources = [
         r for r in resources
-        if any(re.search(pat, r.identifier.lower()) for pat in [r"teste", r"test\b", r"temp", r"dummy", r"sample"])
+        if is_test_resource(r.identifier)
         and r.macro_domain != "Governança"
     ]
 
@@ -34,19 +44,26 @@ def analyze_finops_opportunities(report_data: InventoryReportData) -> FinOpsAnal
     main_regions = {"ca-central-1", "sa-east-1"}
     foreign_regions = {reg: count for reg, count in report_data.regions.items() if reg not in main_regions and reg != "global"}
     total_foreign = sum(foreign_regions.values())
+    foreign_actionable_resources = [
+        r for r in resources
+        if r.region not in main_regions and r.region != "global" and r.macro_domain != "Governança"
+    ]
     if total_foreign > 0:
+        foreign_actionable_count = len(foreign_actionable_resources)
+        estimated_savings = foreign_actionable_count * 1.5 if foreign_actionable_count > 0 else 0.0
         consumption_opps.append(FinOpsOpportunity(
             pillar="Padrões de Consumo",
             title="Dispersão de Recursos em Regiões Secundárias",
             description=(
                 f"Foram identificados {total_foreign} recursos distribuídos em {len(foreign_regions)} regiões "
-                f"secundárias fora do núcleo do projeto ({', '.join(sorted(foreign_regions.keys())[:5])}...). "
+                f"secundárias fora do núcleo do projeto ({', '.join(sorted(foreign_regions.keys())[:5])}...), "
+                f"sendo {foreign_actionable_count} recursos fora de governança/baseline corporativo. "
                 f"Em ambiente de desenvolvimento, isso indica testes residuais ou criação não intencional."
             ),
             evidence_status="[NECESSITA ANÁLISE]",
             effort_level="Baixo (Quick Win)",
             impact_level="Médio",
-            estimated_monthly_savings_usd=total_foreign * 1.5,
+            estimated_monthly_savings_usd=estimated_savings if estimated_savings > 0 else None,
             affected_resources_count=total_foreign,
             resource_identifiers=[f"Regiões: {', '.join(sorted(foreign_regions.keys()))}"],
             playbook_id="pb-cross-region-cleanup"
@@ -177,6 +194,12 @@ def analyze_finops_opportunities(report_data: InventoryReportData) -> FinOpsAnal
     # --- MONTAGEM DOS PLAYBOOKS DE INVESTIGAÇÃO ---
     primary_region = "ca-central-1" if "ca-central-1" in report_data.regions else ("sa-east-1" if "sa-east-1" in report_data.regions else "us-east-1")
 
+    now = datetime.now(timezone.utc)
+    date_end = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    date_start_14d = (now - timedelta(days=14)).strftime("%Y-%m-%dT00:00:00Z")
+    date_start_30d = (now - timedelta(days=30)).strftime("%Y-%m-%dT00:00:00Z")
+    date_snapshot_filter = (now - timedelta(days=60)).strftime("%Y-%m-%d")
+
     # Playbook 1: EC2 Right-sizing & Compute Optimizer
     ec2_ids = [r.identifier for r in ec2_instances]
     ec2_arns = " ".join([r.arn for r in ec2_instances]) if ec2_instances else "<InstanceARNs>"
@@ -193,7 +216,7 @@ def analyze_finops_opportunities(report_data: InventoryReportData) -> FinOpsAnal
             f"# 2. Extrair histórico de CPU média diária nos últimos 14 dias:\n"
             f"aws cloudwatch get-metric-statistics --region {primary_region} --namespace AWS/EC2 --metric-name CPUUtilization "
             f"--dimensions Name=InstanceId,Value={sample_ec2} "
-            f"--start-time 2026-10-01T00:00:00Z --end-time 2026-10-15T23:59:59Z --period 86400 --statistics Average Maximum"
+            f"--start-time {date_start_14d} --end-time {date_end} --period 86400 --statistics Average Maximum"
         ),
         decision_criteria="Se a média de CPU estiver abaixo de 10% e o pico abaixo de 25% por 14 dias contínuos.",
         recommended_action="Reduzir o tamanho da instância (downsizing para geração t4g baseada em Graviton com 20% adicional de desconto)."
@@ -212,7 +235,7 @@ def analyze_finops_opportunities(report_data: InventoryReportData) -> FinOpsAnal
             f"# Extrair total de requisições recebidas pelo Load Balancer nos últimos 30 dias:\n"
             f"aws cloudwatch get-metric-statistics --region {primary_region} --namespace AWS/ApplicationELB "
             f"--metric-name RequestCount --dimensions Name=LoadBalancer,Value={sample_alb} "
-            f"--start-time 2026-10-01T00:00:00Z --end-time 2026-10-31T23:59:59Z --period 86400 --statistics Sum"
+            f"--start-time {date_start_30d} --end-time {date_end} --period 86400 --statistics Sum"
         ),
         decision_criteria="Se a soma de requisições for zero ou residual (< 100 req/mês em dev).",
         recommended_action="Descomissionar o ALB órfão ou migrar suas rotas para o ALB consolidado compartilhado de dev."
@@ -231,7 +254,7 @@ def analyze_finops_opportunities(report_data: InventoryReportData) -> FinOpsAnal
             f"# Verificar conexões ativas no banco de dados durante a madrugada:\n"
             f"aws cloudwatch get-metric-statistics --region {primary_region} --namespace AWS/RDS "
             f"--metric-name DatabaseConnections --dimensions Name=DBInstanceIdentifier,Value={sample_rds} "
-            f"--start-time 2026-10-10T00:00:00Z --end-time 2026-10-10T23:59:59Z --period 3600 --statistics Maximum"
+            f"--start-time {date_start_14d} --end-time {date_end} --period 3600 --statistics Maximum"
         ),
         decision_criteria="Se não houver conexões após as 20h e nos finais de semana.",
         recommended_action="Implantar automação de desligamento programado (AWS Instance Scheduler / Lambda com EventBridge) para 60% de economia."
@@ -247,7 +270,7 @@ def analyze_finops_opportunities(report_data: InventoryReportData) -> FinOpsAnal
         aws_cli_command=(
             f"# Listar snapshots manuais mais antigos na região principal:\n"
             f"aws ec2 describe-snapshots --owner-ids self --region {primary_region} "
-            f"--query 'Snapshots[?StartTime<=`2026-09-01`].[SnapshotId,VolumeId,StartTime]' --output table"
+            f"--query 'Snapshots[?StartTime<=`{date_snapshot_filter}`].[SnapshotId,VolumeId,StartTime]' --output table"
         ),
         decision_criteria="Snapshots de instâncias já deletadas ou rotinas de teste finalizadas.",
         recommended_action="Excluir snapshots legados e configurar regra de ciclo de vida automática no AWS Backup."
