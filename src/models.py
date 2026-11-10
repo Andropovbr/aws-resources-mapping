@@ -81,3 +81,37 @@ class FinOpsAnalysisResult:
     pillar_cost_reduction_opportunities: List[FinOpsOpportunity]
     playbooks: List[PlaybookGuide]
 
+@dataclass
+class OrphanPlaybookGuide:
+    playbook_id: str
+    title: str
+    category: str
+    target_resources: List[str]
+    inspection_console_path: str
+    inspection_cli_command: str
+    decision_criteria: str
+    safe_cleanup_cli_command: str
+    safety_recommendation: str
+
+@dataclass
+class OrphanCandidate:
+    category: str
+    resource_type: str
+    resource_identifier: str
+    resource_name: str
+    region: str
+    status: str
+    confidence_rationale: str
+    estimated_monthly_waste_usd: float
+    playbook_id: str
+
+@dataclass
+class OrphanAnalysisResult:
+    account_id: str
+    total_candidates: int
+    confirmed_orphans_count: int
+    potential_orphans_count: int
+    total_estimated_monthly_waste_usd: float
+    categories_breakdown: Dict[str, List[OrphanCandidate]]
+    playbooks: List[OrphanPlaybookGuide]
+

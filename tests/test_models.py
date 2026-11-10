@@ -6,6 +6,9 @@ from src.models import (
     PlaybookGuide,
     FinOpsOpportunity,
     FinOpsAnalysisResult,
+    OrphanPlaybookGuide,
+    OrphanCandidate,
+    OrphanAnalysisResult,
 )
 
 def test_resource_record_defaults():
@@ -105,4 +108,43 @@ def test_finops_opportunity_models():
     )
     assert result.total_opportunities == 1
     assert len(result.playbooks) == 1
+
+def test_orphan_models():
+    guide = OrphanPlaybookGuide(
+        playbook_id="pb-test",
+        title="Test Playbook",
+        category="Armazenamento",
+        target_resources=["vol-123"],
+        inspection_console_path="Console > EC2",
+        inspection_cli_command="aws ec2 describe-volumes",
+        decision_criteria="Se status available",
+        safe_cleanup_cli_command="aws ec2 delete-volume",
+        safety_recommendation="Fazer snapshot antes"
+    )
+    assert guide.playbook_id == "pb-test"
+
+    candidate = OrphanCandidate(
+        category="Armazenamento",
+        resource_type="ec2:volume",
+        resource_identifier="vol-123",
+        resource_name="DiscoTeste",
+        region="sa-east-1",
+        status="[CANDIDATO A ÓRFÃO]",
+        confidence_rationale="Volume listado sem checagem de anexo",
+        estimated_monthly_waste_usd=8.0,
+        playbook_id="pb-test"
+    )
+    assert candidate.estimated_monthly_waste_usd == 8.0
+
+    result = OrphanAnalysisResult(
+        account_id="123456789012",
+        total_candidates=1,
+        confirmed_orphans_count=0,
+        potential_orphans_count=1,
+        total_estimated_monthly_waste_usd=8.0,
+        categories_breakdown={"Armazenamento": [candidate]},
+        playbooks=[guide]
+    )
+    assert result.total_candidates == 1
+    assert result.total_estimated_monthly_waste_usd == 8.0
 
