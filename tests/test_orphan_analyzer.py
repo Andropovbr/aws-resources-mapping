@@ -257,3 +257,66 @@ def test_orphan_analyzer_comprehensive():
     # 8.00 (vol) + 3.65 (eip) + 22.50 (alb) + 1.50 (log) + 0.00 (cache) = 35.65
     assert result.total_estimated_monthly_waste_usd == pytest.approx(35.65, 0.01)
     assert len(result.playbooks) == 5
+
+
+def test_orphan_analyzer_skips_governance_resources():
+    # Governance resources should never be flagged as orphan candidates
+    gov_vol = _make_resource("vol-gov", "ec2:volume", "ec2", domain="Governança")
+    gov_log = _make_resource("/aws/controltower/logs", "logs:log-group", "logs", domain="Governança")
+    gov_sg = _make_resource("sg-gov", "ec2:security-group", "ec2", domain="governança")
+    gov_snap = _make_resource("snap-gov", "ec2:snapshot", "ec2", domain="Governança")
+    app_vol = _make_resource("vol-app", "ec2:volume", "ec2", domain="Aplicação")
+
+    data = _make_report_data([gov_vol, gov_log, gov_sg, gov_snap, app_vol])
+    result = analyze_orphaned_resources(data)
+
+    assert result.total_candidates == 1
+    assert result.categories_breakdown["Armazenamento"][0].resource_identifier == "vol-app"
+    assert result.total_estimated_monthly_waste_usd == 8.00
+
+
+def test_orphan_analyzer_skips_default_cache_resources():
+    # AWS built-in default cache resources should be ignored
+    ec_default = _make_resource("default", "elasticache:user", "elasticache", region="sa-east-1")
+    ec_default_iam = _make_resource("default.iam-user", "elasticache:user", "elasticache", region="sa-east-1")
+    mem_default_user = _make_resource("default", "memorydb:user", "memorydb", region="sa-east-1")
+    mem_default_param = _make_resource("default.memorydb-redis7", "memorydb:parametergroup", "memorydb", region="sa-east-1")
+    mem_custom_user = _make_resource("app-cache-user", "memorydb:user", "memorydb", region="sa-east-1")
+
+    data = _make_report_data([
+        ec_default,
+        ec_default_iam,
+        mem_default_user,
+        mem_default_param,
+        mem_custom_user,
+    ])
+    result = analyze_orphaned_resources(data)
+
+    cache_candidates = result.categories_breakdown["Cache & Dados In-Memory"]
+    assert len(cache_candidates) == 1
+    assert cache_candidates[0].resource_identifier == "app-cache-user"
+    assert cache_candidates[0].status == "[CONFIRMADO ÓRFÃO]"
+
+
+def test_orphan_analyzer_multi_service_playbook_commands():
+    # Playbook 2 (Snapshots) must have EC2 and RDS commands
+    # Playbook 7 (Cache) must have MemoryDB and ElastiCache commands
+    snap_ec2 = _make_resource("snap-1", "ec2:snapshot", "ec2")
+    user_mem = _make_resource("user-1", "memorydb:user", "memorydb", region="sa-east-1")
+
+    data = _make_report_data([snap_ec2, user_mem])
+    result = analyze_orphaned_resources(data)
+
+    pb_snap = next(pb for pb in result.playbooks if pb.playbook_id == "pb-orphan-snapshots")
+    assert "aws ec2 describe-snapshots" in pb_snap.inspection_cli_command
+    assert "aws rds describe-db-snapshots" in pb_snap.inspection_cli_command
+    assert "aws ec2 delete-snapshot" in pb_snap.safe_cleanup_cli_command
+    assert "aws rds delete-db-snapshot" in pb_snap.safe_cleanup_cli_command
+
+    pb_cache = next(pb for pb in result.playbooks if pb.playbook_id == "pb-orphan-cache-users")
+    assert "aws memorydb describe-clusters" in pb_cache.inspection_cli_command
+    assert "aws elasticache describe-cache-clusters" in pb_cache.inspection_cli_command
+    assert "aws memorydb delete-user" in pb_cache.safe_cleanup_cli_command
+    assert "aws memorydb delete-acl" in pb_cache.safe_cleanup_cli_command
+    assert "aws elasticache delete-user" in pb_cache.safe_cleanup_cli_command
+

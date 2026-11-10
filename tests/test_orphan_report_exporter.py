@@ -251,3 +251,38 @@ def test_export_orphan_report_with_analyzer_integration(tmp_path):
     assert "vol-999" in content
     assert "disco-extra" in content
     assert "pb-orphan-ebs-volumes" in content
+
+
+def test_export_orphan_report_deduplicates_target_resources(tmp_path):
+    output_file = tmp_path / "relatorio_dedup.md"
+
+    pb = OrphanPlaybookGuide(
+        playbook_id="pb-orphan-snapshots",
+        title="Playbook 2: Auditoria e Descarte de Snapshots Residuais (EBS e RDS)",
+        category="Armazenamento",
+        target_resources=["snap-abc", "snap-abc", "snap-def", "snap-def", "snap-xyz"],
+        inspection_console_path="Console",
+        inspection_cli_command="aws test inspect",
+        decision_criteria="Critério",
+        safe_cleanup_cli_command="aws test cleanup",
+        safety_recommendation="Guardrail",
+    )
+
+    analysis = OrphanAnalysisResult(
+        account_id="acc-dedup",
+        total_candidates=0,
+        confirmed_orphans_count=0,
+        potential_orphans_count=0,
+        total_estimated_monthly_waste_usd=0.0,
+        categories_breakdown={},
+        playbooks=[pb],
+    )
+
+    export_orphan_report_markdown(analysis, str(output_file))
+
+    assert output_file.exists()
+    content = output_file.read_text(encoding="utf-8")
+    assert "- **Recursos Identificados:** `snap-abc, snap-def, snap-xyz`" in content
+    # Ensure duplicates are not in the display
+    assert "snap-abc, snap-abc" not in content
+

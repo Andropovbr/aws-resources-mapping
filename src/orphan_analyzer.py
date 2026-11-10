@@ -29,9 +29,19 @@ PLAYBOOK_DEFINITIONS = {
         "title": "Playbook 2: Auditoria e Descarte de Snapshots Residuais (EBS e RDS)",
         "category": "Armazenamento",
         "inspection_console_path": "EC2 > Snapshots / RDS > Snapshots",
-        "inspection_cli_command": "aws ec2 describe-snapshots --region <region> --owner-ids self --query 'Snapshots[*].{SnapshotId:SnapshotId,VolumeId:VolumeId,StartTime:StartTime}' --output table",
+        "inspection_cli_command": (
+            "# Para Snapshots EBS (EC2):\n"
+            "aws ec2 describe-snapshots --region <region> --owner-ids self --query 'Snapshots[*].{SnapshotId:SnapshotId,VolumeId:VolumeId,StartTime:StartTime}' --output table\n\n"
+            "# Para Snapshots RDS:\n"
+            "aws rds describe-db-snapshots --region <region> --snapshot-type manual --query 'DBSnapshots[*].{DBSnapshotIdentifier:DBSnapshotIdentifier,DBInstanceIdentifier:DBInstanceIdentifier,SnapshotCreateTime:SnapshotCreateTime}' --output table"
+        ),
         "decision_criteria": "Validar se o snapshot manual é anterior à política de retenção da organização e se a instância/volume de origem já foi extinta.",
-        "safe_cleanup_cli_command": "aws ec2 delete-snapshot --region <region> --snapshot-id <snap-id>",
+        "safe_cleanup_cli_command": (
+            "# Para Snapshots EBS (EC2):\n"
+            "aws ec2 delete-snapshot --region <region> --snapshot-id <snapshot-id>\n\n"
+            "# Para Snapshots RDS:\n"
+            "aws rds delete-db-snapshot --region <region> --db-snapshot-identifier <snapshot-id>"
+        ),
         "safety_recommendation": "Confirmar com os mantenedores da aplicação se a imagem/snapshot não é requisito de conformidade ou disaster recovery.",
     },
     "pb-orphan-elastic-ips": {
@@ -74,9 +84,20 @@ PLAYBOOK_DEFINITIONS = {
         "title": "Playbook 7: Auditoria e Remoção de Usuários e ACLs de Cache Órfãos",
         "category": "Cache & Dados In-Memory",
         "inspection_console_path": "Amazon MemoryDB / ElastiCache > Users / Access Control Lists",
-        "inspection_cli_command": "aws memorydb describe-clusters --region <region> && aws memorydb describe-users --region <region>",
+        "inspection_cli_command": (
+            "# Para MemoryDB:\n"
+            "aws memorydb describe-clusters --region <region> && aws memorydb describe-users --region <region>\n\n"
+            "# Para ElastiCache:\n"
+            "aws elasticache describe-cache-clusters --region <region> && aws elasticache describe-users --region <region>"
+        ),
         "decision_criteria": "Confirmar ausência de clusters ativos na região ou desvinculação completa de ACLs e credenciais.",
-        "safe_cleanup_cli_command": "aws memorydb delete-user --region <region> --user-name <user-name> && aws memorydb delete-acl --region <region> --acl-name <acl-name>",
+        "safe_cleanup_cli_command": (
+            "# Para MemoryDB:\n"
+            "aws memorydb delete-user --region <region> --user-name <user-name>\n"
+            "aws memorydb delete-acl --region <region> --acl-name <acl-name>\n\n"
+            "# Para ElastiCache:\n"
+            "aws elasticache delete-user --region <region> --user-id <user-id>"
+        ),
         "safety_recommendation": "Fazer backup prévio das ACLs e mapeamento de usuários antes de remover credenciais residuais.",
     },
     "pb-orphan-acm-certs": {
@@ -142,6 +163,9 @@ def analyze_orphaned_resources(report_data: InventoryReportData) -> OrphanAnalys
     active_cache_regions = _find_active_cache_regions(report_data.all_resources)
 
     for r in report_data.all_resources:
+        if (r.macro_domain or "").lower() in ("governança", "governanca"):
+            continue
+
         service_lower = (r.service or "").lower()
         type_lower = (r.resource_type or "").lower()
         cfn_lower = (r.cfn_resource_type or "").lower()
@@ -329,6 +353,9 @@ def analyze_orphaned_resources(report_data: InventoryReportData) -> OrphanAnalys
             type_lower in ("elasticache:user", "memorydb:user", "memorydb:acl", "memorydb:parametergroup")
             or cfn_lower in ("aws::elasticache::user", "aws::memorydb::user", "aws::memorydb::acl", "aws::memorydb::parametergroup")
         ):
+            if ident_lower == "default" or ident_lower.startswith("default.") or name_lower == "default":
+                continue
+
             region_has_cluster = r.region in active_cache_regions
             if not region_has_cluster:
                 status = "[CONFIRMADO ÓRFÃO]"
@@ -405,7 +432,7 @@ def analyze_orphaned_resources(report_data: InventoryReportData) -> OrphanAnalys
                 playbook_id=pb_id,
                 title=meta["title"],
                 category=meta["category"],
-                target_resources=targets,
+                target_resources=list(dict.fromkeys(targets)),
                 inspection_console_path=meta["inspection_console_path"],
                 inspection_cli_command=meta["inspection_cli_command"],
                 decision_criteria=meta["decision_criteria"],

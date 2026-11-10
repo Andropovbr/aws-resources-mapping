@@ -84,9 +84,10 @@ def export_orphan_report_markdown(analysis: OrphanAnalysisResult, output_path: s
             md.append(f"<a id=\"{pb.playbook_id}\"></a>\n")
             md.append(f"### {pb.title}\n")
             md.append(f"- **Categoria:** {pb.category}")
-            resources_display = f"`{', '.join(pb.target_resources[:10])}`" if pb.target_resources else "-"
-            if len(pb.target_resources) > 10:
-                resources_display += f" _(+ {len(pb.target_resources)-10} adicionais)_"
+            unique_targets = list(dict.fromkeys(pb.target_resources)) if pb.target_resources else []
+            resources_display = f"`{', '.join(unique_targets[:10])}`" if unique_targets else "-"
+            if len(unique_targets) > 10:
+                resources_display += f" _(+ {len(unique_targets)-10} adicionais)_"
             md.append(f"- **Recursos Identificados:** {resources_display}")
             md.append(f"- **Caminho no Console:** {pb.inspection_console_path}")
             md.append(f"- **Critério de Decisão:** {pb.decision_criteria}")
