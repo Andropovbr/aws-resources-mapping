@@ -33,6 +33,12 @@ def test_run_pipeline_end_to_end(tmp_path: Path):
     assert "Scorecard Executivo de Recursos Órfãos" in orphan_content
     assert "Playbooks Práticos" in orphan_content
 
+    # DOCX reports verification in output/docs/
+    docs_dir = out_dir / "docs"
+    assert (docs_dir / "relatorio_testaccount.docx").exists()
+    assert (docs_dir / "relatorio_oportunidades_finops_testaccount.docx").exists()
+    assert (docs_dir / "relatorio_recursos_orfaos_testaccount.docx").exists()
+
 def test_run_pipeline_empty_dir_raises_error(tmp_path: Path):
     out_dir = tmp_path / "output"
     with pytest.raises(ValueError, match="Nenhum recurso encontrado"):
@@ -62,6 +68,9 @@ def test_main_cli(tmp_path: Path, monkeypatch):
     assert (out_dir / "relatorio_test-account.md").exists()
     assert (out_dir / "relatorio_oportunidades_finops_test-account.md").exists()
     assert (out_dir / "relatorio_recursos_orfaos_test-account.md").exists()
+    assert (out_dir / "docs" / "relatorio_test-account.docx").exists()
+    assert (out_dir / "docs" / "relatorio_oportunidades_finops_test-account.docx").exists()
+    assert (out_dir / "docs" / "relatorio_recursos_orfaos_test-account.docx").exists()
 
 def test_main_cli_default_account_autodetect(tmp_path: Path, monkeypatch):
     csv_file = tmp_path / "resources.csv"

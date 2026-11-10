@@ -14,6 +14,7 @@ from src.exporters.excel import generate_excel_workbook
 from src.exporters.markdown import generate_markdown_report
 from src.exporters.finops_report import export_finops_opportunities_markdown
 from src.exporters.orphan_report import export_orphan_report_markdown
+from src.exporters.docx_report import convert_markdown_to_docx
 from src.models import InventoryReportData
 
 def run_pipeline(input_dir: str, output_dir: str, account: str = "") -> Tuple[str, str, str, str]:
@@ -77,6 +78,19 @@ def run_pipeline(input_dir: str, output_dir: str, account: str = "") -> Tuple[st
     orphan_analysis = analyze_orphaned_resources(report_data)
     export_orphan_report_markdown(orphan_analysis, orphan_md_path)
     print(f"[OK] Relatório executivo de recursos órfãos gerado: {orphan_md_path}")
+
+    # 7. Exportação em Formato Word (.docx) na subpasta docs/
+    docs_dir = out_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    tech_docx = str(docs_dir / f"relatorio_{clean_account_name}.docx")
+    finops_docx = str(docs_dir / f"relatorio_oportunidades_finops_{clean_account_name}.docx")
+    orphan_docx = str(docs_dir / f"relatorio_recursos_orfaos_{clean_account_name}.docx")
+
+    print(f"[*] Exportando relatórios em formato Word (.docx) na pasta: {docs_dir}")
+    convert_markdown_to_docx(md_file, tech_docx)
+    convert_markdown_to_docx(finops_opp_md_path, finops_docx)
+    convert_markdown_to_docx(orphan_md_path, orphan_docx)
+    print(f"[OK] Documentos Word (.docx) gerados com sucesso na pasta: {docs_dir}")
 
     print("[✓] Processamento concluído com sucesso!")
     return excel_file, md_file, finops_opp_md_path, orphan_md_path

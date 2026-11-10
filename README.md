@@ -1,7 +1,7 @@
 # AWS Resource Mapping & FinOps Pipeline
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/Tests-56%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-63%20passed-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)]()
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-informational.svg)]()
 
@@ -112,6 +112,11 @@ flowchart TD
     G --> K["output/relatorio_<conta>.md"]
     I --> L["output/relatorio_oportunidades_finops_<conta>.md"]
     N --> O["output/relatorio_recursos_orfaos_<conta>.md"]
+
+    K --> P["Conversor Word (.docx)<br/>(src/exporters/docx_report.py)"]
+    L --> P
+    O --> P
+    P --> Q["output/docs/relatorio_*.docx"]
 ```
 
 ---
@@ -130,7 +135,11 @@ resources multicanais-dev/
 │   ├── inventario_<conta>.xlsx
 │   ├── relatorio_<conta>.md
 │   ├── relatorio_oportunidades_finops_<conta>.md
-│   └── relatorio_recursos_orfaos_<conta>.md
+│   ├── relatorio_recursos_orfaos_<conta>.md
+│   └── docs/                      # Relatórios formatados para Word (.docx)
+│       ├── relatorio_<conta>.docx
+│       ├── relatorio_oportunidades_finops_<conta>.docx
+│       └── relatorio_recursos_orfaos_<conta>.docx
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                    # Entrypoint CLI do pipeline
@@ -145,7 +154,8 @@ resources multicanais-dev/
 │       ├── excel.py               # Geração do workbook Excel estilizado
 │       ├── markdown.py            # Geração do relatório técnico de inventário
 │       ├── finops_report.py       # Geração do relatório executivo de FinOps
-│       └── orphan_report.py       # Geração do relatório de recursos órfãos
+│       ├── orphan_report.py       # Geração do relatório de recursos órfãos
+│       └── docx_report.py         # Conversão e estilização executiva em Word (.docx)
 ├── tests/                         # Suite de testes unitários e de integração
 │   ├── test_ingestion.py
 │   ├── test_correlator.py
@@ -156,6 +166,7 @@ resources multicanais-dev/
 │   ├── test_markdown_exporter.py
 │   ├── test_finops_report_exporter.py
 │   ├── test_orphan_report_exporter.py
+│   ├── test_docx_exporter.py
 │   ├── test_models.py
 │   └── test_e2e.py
 └── README.md
@@ -189,11 +200,11 @@ resources multicanais-dev/
 
 3. Instale as dependências necessárias:
    ```bash
-   pip install openpyxl pytest
+   pip install openpyxl python-docx pytest
    ```
 
 > [!NOTE]
-> O projeto utiliza prioritariamente a biblioteca padrão do Python (`csv`, `re`, `pathlib`, `argparse`, `dataclasses`, `datetime`). A dependência externa necessária para a execução do pipeline é o `openpyxl` (geração de planilhas formatadas). O `pytest` é utilizado para execução da suite de testes.
+> O projeto utiliza prioritariamente a biblioteca padrão do Python (`csv`, `re`, `pathlib`, `argparse`, `dataclasses`, `datetime`). As dependências externas para execução do pipeline são o `openpyxl` (geração de planilhas Excel formatadas) e o `python-docx` (geração de documentos Word `.docx`). O `pytest` é utilizado para execução da suite de testes.
 
 ---
 
@@ -268,6 +279,7 @@ Após a execução, o pipeline entrega quatro artefatos complementares no diret�
 | `relatorio_<conta>.md` | Markdown | Liderança Técnica & Arquitetura | Relatório técnico com sumário executivo, tabela de topologia por aplicação, distribuição geográfica de recursos e catálogo de cargas de computação. |
 | `relatorio_oportunidades_finops_<conta>.md` | Markdown | FinOps, Gestão & Diretoria | Relatório executivo com scorecards de economia estimada (mensal e anual), matriz de priorização (*Quick Wins* vs. *Projetos Estruturais*), detalhamento por pilar e playbooks copiáveis do AWS CLI. |
 | `relatorio_recursos_orfaos_<conta>.md` | Markdown | SRE, DevOps & Infraestrutura | Relatório executivo de higienização de nuvem contendo Scorecard de desperdício mensal e anualizado, matriz de esforço x impacto, tabelas de recursos órfãos segregadas pelos 5 domínios e playbooks operacionais executáveis em Bash/AWS CLI (Playbooks 1 a 9). |
+| `docs/relatorio_*.docx` | Documento Word (.docx) | Gestão, Chamados & E-mails | Versões formatadas em `.docx` de todos os 3 relatórios executivos e técnicos salvos na subpasta `output/docs/`, com tabelas estilizadas, títulos corporativos e blocos de código prontos para anexar diretamente em tickets do Jira, ServiceNow ou comunicados por e-mail. |
 
 ---
 
@@ -459,21 +471,22 @@ Exemplo de saída esperada:
 ```text
 ============================= test session starts =============================
 platform win32 -- Python 3.15.0, pytest-9.1.1, pluggy-1.7.0
-collected 56 items
+collected 63 items
 
-tests/test_correlator.py .................                                [ 12%]
-tests/test_e2e.py ......                                                  [ 23%]
-tests/test_excel_exporter.py ...                                          [ 28%]
-tests/test_finops.py .....                                                [ 37%]
+tests/test_correlator.py .......                                          [ 11%]
+tests/test_docx_exporter.py ...                                           [ 15%]
+tests/test_e2e.py ......                                                  [ 25%]
+tests/test_excel_exporter.py ...                                          [ 30%]
+tests/test_finops.py .....                                                [ 38%]
 tests/test_finops_analyzer.py ...                                         [ 42%]
-tests/test_finops_report_exporter.py ...                                  [ 48%]
-tests/test_ingestion.py ........                                          [ 62%]
-tests/test_markdown_exporter.py ....                                      [ 69%]
-tests/test_models.py ....                                                 [ 78%]
-tests/test_orphan_analyzer.py ........                                    [ 92%]
-tests/test_orphan_report_exporter.py ....                                 [100%]
+tests/test_finops_report_exporter.py ...                                  [ 47%]
+tests/test_ingestion.py ........                                          [ 60%]
+tests/test_markdown_exporter.py ....                                      [ 66%]
+tests/test_models.py .....                                                [ 74%]
+tests/test_orphan_analyzer.py ...........                                 [ 92%]
+tests/test_orphan_report_exporter.py .....                                [100%]
 
-============================= 56 passed in 0.48s ==============================
+============================= 63 passed in 2.68s ==============================
 ```
 
 Para rodar apenas um arquivo de teste específico:
