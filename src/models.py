@@ -145,3 +145,79 @@ class OrphanAnalysisResult:
             return f"Conta {self.account_name} ({self.account_id})"
         return f"Conta {self.account_id}"
 
+@dataclass
+class TopologyComponent:
+    id: str
+    name: str
+    service: str
+    layer: str
+    arn: str
+    region: str
+    squad: str
+    owner: Optional[str] = None
+    criticality: str = "Padrão"
+    upstream_ids: List[str] = field(default_factory=list)
+    downstream_ids: List[str] = field(default_factory=list)
+
+@dataclass
+class ComponentConnection:
+    source_id: str
+    target_id: str
+    connection_type: str
+    label: str
+
+@dataclass
+class ApplicationTopology:
+    app_name: str
+    slug: str
+    squad: str
+    owner: Optional[str]
+    criticality: str
+    description: str
+    components: List[TopologyComponent] = field(default_factory=list)
+    connections: List[ComponentConnection] = field(default_factory=list)
+
+    @property
+    def ingress_components(self) -> List[TopologyComponent]:
+        return [c for c in self.components if c.layer == "Ingresso & Endpoints"]
+
+    @property
+    def compute_components(self) -> List[TopologyComponent]:
+        return [c for c in self.components if c.layer == "Computação & Lógica"]
+
+    @property
+    def messaging_components(self) -> List[TopologyComponent]:
+        return [c for c in self.components if c.layer == "Mensageria & Filas"]
+
+    @property
+    def database_components(self) -> List[TopologyComponent]:
+        return [c for c in self.components if c.layer == "Banco de Dados & Cache"]
+
+    @property
+    def storage_components(self) -> List[TopologyComponent]:
+        return [c for c in self.components if c.layer == "Armazenamento & Apoio"]
+
+@dataclass
+class TopologyAnalysisResult:
+    account_id: str
+    total_applications: int
+    total_components: int
+    total_connections: int
+    assigned_squads_count: int
+    squad_distribution: Dict[str, int]
+    layer_distribution: Dict[str, int]
+    applications: List[ApplicationTopology]
+    shared_infrastructure: List[TopologyComponent]
+    unassigned_components: List[TopologyComponent]
+    account_name: Optional[str] = None
+    account_display: Optional[str] = None
+
+    @property
+    def display_title(self) -> str:
+        if self.account_display:
+            return self.account_display
+        if self.account_name and self.account_name != self.account_id:
+            return f"Conta {self.account_name} ({self.account_id})"
+        return f"Conta {self.account_id}"
+
+

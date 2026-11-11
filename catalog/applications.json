@@ -1,0 +1,28 @@
+{
+  "applications": {
+    "canais-digitais": {
+      "name": "Canais Digitais",
+      "squad": "Squad Canais & Portais",
+      "owner": "techlead-canais@empresa.com",
+      "criticality": "Crítica / Tier 1",
+      "match_patterns": ["canais", "multicanais", "canaisdb"],
+      "description": "Plataforma central de atendimento e portais digitais"
+    },
+    "vdo-promocao": {
+      "name": "VDO & Promoção Digital",
+      "squad": "Squad Marketing & Promoções",
+      "owner": "techlead-vdo@empresa.com",
+      "criticality": "Alta",
+      "match_patterns": ["vdo", "promo-digital", "promodb", "alb-vdo", "porto-vdo"],
+      "description": "Sistema de gestão e veiculação de promoções e campanhas"
+    },
+    "wordpress-blog": {
+      "name": "WordPress / Blog",
+      "squad": "Squad Conteúdo & Institucional",
+      "owner": "techlead-conteudo@empresa.com",
+      "criticality": "Média",
+      "match_patterns": ["wordpress", "blog"],
+      "description": "Portais de conteúdo corporativo e blogs institucionais"
+    }
+  }
+}
