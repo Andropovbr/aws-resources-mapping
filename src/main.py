@@ -10,15 +10,17 @@ from src.correlator import correlate_and_classify_resources
 from src.finops import evaluate_finops_rules
 from src.finops_analyzer import analyze_finops_opportunities
 from src.orphan_analyzer import analyze_orphaned_resources
+from src.topology_analyzer import analyze_application_topology
 from src.exporters.excel import generate_excel_workbook
 from src.exporters.markdown import generate_markdown_report
 from src.exporters.finops_report import export_finops_opportunities_markdown
 from src.exporters.orphan_report import export_orphan_report_markdown
+from src.exporters.topology_report import export_topology_report_markdown
 from src.exporters.docx_report import convert_markdown_to_docx
 from src.models import InventoryReportData
 from src.account_resolver import resolve_account_info
 
-def run_pipeline(input_dir: str, output_dir: str, account: str = "") -> Tuple[str, str, str, str]:
+def run_pipeline(input_dir: str, output_dir: str, account: str = "", catalog: str = "") -> Tuple[str, str, str, str, str]:
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
     spreadsheets_dir = out_path / "spreadsheets"
@@ -78,9 +80,17 @@ def run_pipeline(input_dir: str, output_dir: str, account: str = "") -> Tuple[st
     finops_opp_md_path = str(markdowns_dir / finops_opp_md_filename)
     orphan_md_filename = f"relatorio_recursos_orfaos_{clean_account_name}.md"
     orphan_md_path = str(markdowns_dir / orphan_md_filename)
+    topology_md_filename = f"relatorio_arquitetura_aplicacoes_{clean_account_name}.md"
+    topology_md_path = str(markdowns_dir / topology_md_filename)
+
+    # 8. Análise de Topologia, Dependências e Arquitetura de Aplicações
+    print("[*] Mapeando arquitetura de aplicações, dependências e ownership...")
+    topology_analysis = analyze_application_topology(report_data, catalog_path=catalog)
+    export_topology_report_markdown(topology_analysis, topology_md_path)
+    print(f"[OK] Relatório executivo de arquitetura e topologia gerado: {topology_md_path}")
 
     print(f"[*] Gerando pasta de trabalho Excel: {excel_file}")
-    generate_excel_workbook(report_data, excel_file)
+    generate_excel_workbook(report_data, excel_file, topology_analysis=topology_analysis)
 
     print(f"[*] Gerando relatório executivo Markdown: {md_file}")
     generate_markdown_report(report_data, md_file)
@@ -99,25 +109,28 @@ def run_pipeline(input_dir: str, output_dir: str, account: str = "") -> Tuple[st
     tech_docx = str(docs_dir / f"relatorio_{clean_account_name}.docx")
     finops_docx = str(docs_dir / f"relatorio_oportunidades_finops_{clean_account_name}.docx")
     orphan_docx = str(docs_dir / f"relatorio_recursos_orfaos_{clean_account_name}.docx")
+    topology_docx = str(docs_dir / f"relatorio_arquitetura_aplicacoes_{clean_account_name}.docx")
 
     print(f"[*] Exportando relatórios em formato Word (.docx) na pasta: {docs_dir}")
     convert_markdown_to_docx(md_file, tech_docx)
     convert_markdown_to_docx(finops_opp_md_path, finops_docx)
     convert_markdown_to_docx(orphan_md_path, orphan_docx)
+    convert_markdown_to_docx(topology_md_path, topology_docx)
     print(f"[OK] Documentos Word (.docx) gerados com sucesso na pasta: {docs_dir}")
 
     print("[✓] Processamento concluído com sucesso!")
-    return excel_file, md_file, finops_opp_md_path, orphan_md_path
+    return excel_file, md_file, finops_opp_md_path, orphan_md_path, topology_md_path
 
 def main():
     parser = argparse.ArgumentParser(description="Mapeador de Recursos AWS e FinOps Pipeline")
     parser.add_argument("--input-dir", default="./", help="Diretório contendo os arquivos CSV de exportação")
     parser.add_argument("--output-dir", default="./output", help="Diretório de saída para os relatórios gerados")
     parser.add_argument("--account", default="", help="Nome ou ID da conta AWS para titulação (se omitido, autodetecta da coluna 'Conta da AWS')")
+    parser.add_argument("--catalog", default="", help="Caminho para arquivo de catálogo de aplicações (applications.json)")
     args = parser.parse_args()
 
     try:
-        run_pipeline(args.input_dir, args.output_dir, args.account)
+        run_pipeline(args.input_dir, args.output_dir, args.account, args.catalog)
     except Exception as e:
         print(f"[!] Erro durante execução do pipeline: {e}", file=sys.stderr)
         sys.exit(1)
