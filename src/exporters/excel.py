@@ -1,12 +1,15 @@
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from src.models import InventoryReportData, ResourceRecord
+from src.models import InventoryReportData, ResourceRecord, TopologyAnalysisResult
 
 HEADER_FILL = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
 HEADER_FONT = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
 TITLE_FONT = Font(name="Calibri", size=14, bold=True, color="1F4E79")
+TOPOLOGY_HEADER_FILL = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
+TOPOLOGY_HEADER_FONT = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+ZEBRA_FILL = PatternFill(start_color="F2F4F7", end_color="F2F4F7", fill_type="solid")
 BORDER_THIN = Border(
     left=Side(style="thin", color="D9D9D9"),
     right=Side(style="thin", color="D9D9D9"),
@@ -33,7 +36,96 @@ def _autofit_columns(ws):
                 max_len = len(val_str)
         ws.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 60)
 
-def generate_excel_workbook(data: InventoryReportData, output_file: str) -> None:
+def _populate_topology_sheet(ws, topology_analysis: TopologyAnalysisResult):
+    headers = [
+        "Aplicação", "Squad Responsável", "Tech Lead / Owner", "Criticidade",
+        "ID do Componente", "Nome Amigável", "Serviço AWS", "Camada Funcional",
+        "Região", "Origem (Upstream)", "Destino (Downstream)", "ARN"
+    ]
+    ws.append(headers)
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = TOPOLOGY_HEADER_FONT
+        cell.fill = TOPOLOGY_HEADER_FILL
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = BORDER_THIN
+
+    for app in topology_analysis.applications:
+        for c in app.components:
+            up_str = ", ".join(c.upstream_ids) if c.upstream_ids else "-"
+            down_str = ", ".join(c.downstream_ids) if c.downstream_ids else "-"
+            ws.append([
+                app.app_name,
+                c.squad,
+                c.owner or "-",
+                c.criticality,
+                c.id,
+                c.name,
+                c.service,
+                c.layer,
+                c.region,
+                up_str,
+                down_str,
+                c.arn
+            ])
+
+    for c in topology_analysis.shared_infrastructure:
+        ws.append([
+            "Infraestrutura Compartilhada",
+            c.squad,
+            c.owner or "-",
+            c.criticality,
+            c.id,
+            c.name,
+            c.service,
+            c.layer,
+            c.region,
+            "-",
+            "-",
+            c.arn
+        ])
+
+    for c in topology_analysis.unassigned_components:
+        ws.append([
+            "A Classificar",
+            c.squad,
+            "-",
+            c.criticality,
+            c.id,
+            c.name,
+            c.service,
+            c.layer,
+            c.region,
+            "-",
+            "-",
+            c.arn
+        ])
+
+    # Zebra rows and thin borders
+    for row_idx in range(2, ws.max_row + 1):
+        is_even = (row_idx % 2 == 0)
+        row_fill = ZEBRA_FILL if is_even else None
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.border = BORDER_THIN
+            if row_fill:
+                cell.fill = row_fill
+
+    ws.auto_filter.ref = ws.dimensions
+
+    # Auto ajuste de largura de colunas
+    for col in ws.columns:
+        if not col:
+            continue
+        max_len = max((len(str(cell.value or "")) for cell in col), default=0)
+        col_letter = col[0].column_letter
+        ws.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 50)
+
+def generate_excel_workbook(
+    data: InventoryReportData,
+    output_file: str,
+    topology_analysis: Optional[TopologyAnalysisResult] = None
+) -> None:
     wb = openpyxl.Workbook()
     # Remove default sheet
     wb.remove(wb.active)
@@ -117,6 +209,11 @@ def generate_excel_workbook(data: InventoryReportData, output_file: str) -> None
 
     # 6. Inventário Geral
     _create_resource_table("Inventário Geral", data.all_resources)
+
+    # 7. Topologia & Arquitetura (quando fornecido)
+    if topology_analysis is not None:
+        ws_topo = wb.create_sheet(title="Topologia & Arquitetura")
+        _populate_topology_sheet(ws_topo, topology_analysis)
 
     out_path = Path(output_file)
     out_path.parent.mkdir(parents=True, exist_ok=True)

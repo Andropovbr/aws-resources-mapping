@@ -1,7 +1,14 @@
 import pytest
 from pathlib import Path
 import openpyxl
-from src.models import InventoryReportData, ApplicationCluster, ResourceRecord
+from src.models import (
+    InventoryReportData,
+    ApplicationCluster,
+    ResourceRecord,
+    TopologyComponent,
+    ApplicationTopology,
+    TopologyAnalysisResult,
+)
 from src.exporters.excel import generate_excel_workbook
 
 def test_excel_workbook_generation(tmp_path: Path):
@@ -224,4 +231,159 @@ def test_excel_workbook_empty_data(tmp_path: Path):
     wb = openpyxl.load_workbook(out_file)
     assert "Resumo Executivo" in wb.sheetnames
     assert "Inventário Geral" in wb.sheetnames
+
+
+def create_sample_report_data() -> InventoryReportData:
+    return InventoryReportData(
+        account_id="123",
+        total_resources=0,
+        unique_arns=0,
+        regions={},
+        services={},
+        macro_domains={},
+        finops_summary={},
+        clusters=[],
+        all_resources=[]
+    )
+
+
+def test_generate_excel_with_topology_tab(tmp_path: Path):
+    report_data = create_sample_report_data()
+
+    comp = TopologyComponent(
+        id="alb-vdo",
+        name="alb-vdo",
+        service="elasticloadbalancing",
+        layer="Ingresso & Endpoints",
+        arn="arn:aws:alb:123",
+        region="us-east-1",
+        squad="Squad Marketing",
+        owner="lead@vdo.com",
+        criticality="Alta",
+        upstream_ids=[],
+        downstream_ids=["tg-vdo"]
+    )
+    shared_comp = TopologyComponent(
+        id="vpc-shared",
+        name="vpc-shared",
+        service="vpc",
+        layer="Rede & Tráfego",
+        arn="arn:aws:ec2:vpc/123",
+        region="us-east-1",
+        squad="Squad Infra",
+        owner="infra@company.com",
+        criticality="Média",
+        upstream_ids=[],
+        downstream_ids=[]
+    )
+    unassigned_comp = TopologyComponent(
+        id="s3-unknown",
+        name="s3-unknown",
+        service="s3",
+        layer="Armazenamento",
+        arn="arn:aws:s3:::orphan-bucket",
+        region="us-east-1",
+        squad="A Classificar",
+        owner=None,
+        criticality="Baixa",
+        upstream_ids=[],
+        downstream_ids=[]
+    )
+    app = ApplicationTopology(
+        app_name="VDO",
+        slug="vdo",
+        squad="Squad Marketing",
+        owner="lead@vdo.com",
+        criticality="Alta",
+        description="",
+        components=[comp],
+        connections=[]
+    )
+    topology_analysis = TopologyAnalysisResult(
+        account_id="123",
+        total_applications=1,
+        total_components=3,
+        total_connections=0,
+        assigned_squads_count=2,
+        squad_distribution={"Squad Marketing": 1, "Squad Infra": 1},
+        layer_distribution={"Ingresso & Endpoints": 1, "Rede & Tráfego": 1, "Armazenamento": 1},
+        applications=[app],
+        shared_infrastructure=[shared_comp],
+        unassigned_components=[unassigned_comp]
+    )
+
+    out_file = str(tmp_path / "inventario_com_topologia.xlsx")
+    generate_excel_workbook(report_data, out_file, topology_analysis=topology_analysis)
+
+    wb = openpyxl.load_workbook(out_file)
+    assert "Topologia & Arquitetura" in wb.sheetnames
+    ws = wb["Topologia & Arquitetura"]
+
+    # Header checks
+    expected_headers = [
+        "Aplicação", "Squad Responsável", "Tech Lead / Owner", "Criticidade",
+        "ID do Componente", "Nome Amigável", "Serviço AWS", "Camada Funcional",
+        "Região", "Origem (Upstream)", "Destino (Downstream)", "ARN"
+    ]
+    for col_idx, expected_title in enumerate(expected_headers, start=1):
+        cell = ws.cell(row=1, column=col_idx)
+        assert cell.value == expected_title
+        assert cell.fill.start_color.rgb in ("001F497D", "1F497D")
+        assert cell.font.color.rgb in ("00FFFFFF", "FFFFFF")
+        assert cell.font.bold is True
+
+    # Row 2 (Application Component)
+    assert ws.cell(row=2, column=1).value == "VDO"
+    assert ws.cell(row=2, column=2).value == "Squad Marketing"
+    assert ws.cell(row=2, column=3).value == "lead@vdo.com"
+    assert ws.cell(row=2, column=4).value == "Alta"
+    assert ws.cell(row=2, column=5).value == "alb-vdo"
+    assert ws.cell(row=2, column=6).value == "alb-vdo"
+    assert ws.cell(row=2, column=7).value == "elasticloadbalancing"
+    assert ws.cell(row=2, column=8).value == "Ingresso & Endpoints"
+    assert ws.cell(row=2, column=9).value == "us-east-1"
+    assert ws.cell(row=2, column=10).value == "-"
+    assert ws.cell(row=2, column=11).value == "tg-vdo"
+    assert ws.cell(row=2, column=12).value == "arn:aws:alb:123"
+
+    # Row 3 (Shared Infrastructure)
+    assert ws.cell(row=3, column=1).value == "Infraestrutura Compartilhada"
+    assert ws.cell(row=3, column=2).value == "Squad Infra"
+    assert ws.cell(row=3, column=5).value == "vpc-shared"
+
+    # Row 4 (Unassigned Components)
+    assert ws.cell(row=4, column=1).value == "A Classificar"
+    assert ws.cell(row=4, column=2).value == "A Classificar"
+    assert ws.cell(row=4, column=3).value == "-"
+    assert ws.cell(row=4, column=5).value == "s3-unknown"
+
+    # Auto-filter check
+    assert ws.auto_filter.ref is not None
+
+    # Zebra rows and borders
+    assert ws.cell(row=2, column=1).fill.start_color.rgb in ("00F2F4F7", "F2F4F7")
+    assert ws.cell(row=3, column=1).fill.fill_type is None
+    assert ws.cell(row=2, column=1).border.left.style == "thin"
+
+    # Column widths adjusted
+    for col_letter in ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]:
+        assert ws.column_dimensions[col_letter].width >= 12
+
+
+def test_generate_excel_without_topology_tab(tmp_path: Path):
+    report_data = create_sample_report_data()
+    out_file = str(tmp_path / "inventario_sem_topologia.xlsx")
+
+    # When topology_analysis is omitted
+    generate_excel_workbook(report_data, out_file)
+    wb = openpyxl.load_workbook(out_file)
+    assert "Topologia & Arquitetura" not in wb.sheetnames
+
+    # When topology_analysis is explicitly None
+    out_file_none = str(tmp_path / "inventario_none_topologia.xlsx")
+    generate_excel_workbook(report_data, out_file_none, topology_analysis=None)
+    wb_none = openpyxl.load_workbook(out_file_none)
+    assert "Topologia & Arquitetura" not in wb_none.sheetnames
+
+
 
