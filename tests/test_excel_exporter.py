@@ -50,6 +50,29 @@ def test_excel_workbook_generation(tmp_path: Path):
     for s in expected_sheets:
         assert s in wb.sheetnames
 
+    # Check title with default account_id
+    assert wb["Resumo Executivo"].cell(row=1, column=1).value == "Inventário AWS & FinOps — Conta 123"
+
+
+def test_excel_workbook_title_with_account_name(tmp_path: Path):
+    data = InventoryReportData(
+        account_id="807445251352",
+        total_resources=0,
+        unique_arns=0,
+        regions={},
+        services={},
+        macro_domains={},
+        finops_summary={},
+        clusters=[],
+        all_resources=[],
+        account_name="multicanais-dev"
+    )
+    out_file = tmp_path / "inventario_nome.xlsx"
+    generate_excel_workbook(data, str(out_file))
+    wb = openpyxl.load_workbook(out_file)
+    assert wb["Resumo Executivo"].cell(row=1, column=1).value == "Inventário AWS & FinOps — Conta multicanais-dev (807445251352)"
+
+
 
 def test_excel_sheet_contents_and_filtering(tmp_path: Path):
     r1 = ResourceRecord(

@@ -40,7 +40,7 @@ def generate_excel_workbook(data: InventoryReportData, output_file: str) -> None
 
     # 1. Resumo Executivo
     ws_resumo = wb.create_sheet(title="Resumo Executivo")
-    ws_resumo.cell(row=1, column=1, value=f"Inventário AWS & FinOps — Conta {data.account_id}").font = TITLE_FONT
+    ws_resumo.cell(row=1, column=1, value=f"Inventário AWS & FinOps — {data.display_title}").font = TITLE_FONT
     ws_resumo.cell(row=3, column=1, value="Métrica").font = HEADER_FONT
     ws_resumo.cell(row=3, column=2, value="Valor").font = HEADER_FONT
     ws_resumo.cell(row=3, column=1).fill = HEADER_FILL

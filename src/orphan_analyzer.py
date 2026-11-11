@@ -456,4 +456,6 @@ def analyze_orphaned_resources(report_data: InventoryReportData) -> OrphanAnalys
         total_estimated_monthly_waste_usd=total_waste,
         categories_breakdown=categories_breakdown,
         playbooks=playbooks,
+        account_name=report_data.account_name,
+        account_display=report_data.account_display,
     )

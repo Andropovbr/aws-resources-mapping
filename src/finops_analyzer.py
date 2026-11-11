@@ -307,5 +307,7 @@ def analyze_finops_opportunities(report_data: InventoryReportData) -> FinOpsAnal
         pillar_consumption_opportunities=consumption_opps,
         pillar_rightsizing_opportunities=rightsizing_opps,
         pillar_cost_reduction_opportunities=reduction_opps,
-        playbooks=playbooks
+        playbooks=playbooks,
+        account_name=report_data.account_name,
+        account_display=report_data.account_display,
     )

@@ -59,7 +59,26 @@ def test_markdown_report_generation(tmp_path: Path):
     assert "logs-canaisdig" in content
     assert "Nenhum recurso de alto ou médio impacto necessitando de investigação imediata." in content
 
+def test_markdown_report_with_account_name(tmp_path: Path):
+    data = InventoryReportData(
+        account_id="807445251352",
+        total_resources=0,
+        unique_arns=0,
+        regions={},
+        services={},
+        macro_domains={},
+        finops_summary={},
+        clusters=[],
+        all_resources=[],
+        account_name="multicanais-dev"
+    )
+    out_file = tmp_path / "relatorio_nome.md"
+    content = generate_markdown_report(data, str(out_file))
+    assert "# Relatório Executivo de Inventário AWS e FinOps — Conta multicanais-dev (807445251352)" in content
+    assert "- **Conta AWS:** `Conta multicanais-dev (807445251352)`" in content
+
 def test_markdown_report_investigate_items_truncation(tmp_path: Path):
+
     items = []
     for i in range(25):
         items.append(

@@ -44,6 +44,16 @@ class InventoryReportData:
     finops_summary: Dict[str, int]
     clusters: List[ApplicationCluster]
     all_resources: List[ResourceRecord]
+    account_name: Optional[str] = None
+    account_display: Optional[str] = None
+
+    @property
+    def display_title(self) -> str:
+        if self.account_display:
+            return self.account_display
+        if self.account_name and self.account_name != self.account_id:
+            return f"Conta {self.account_name} ({self.account_id})"
+        return f"Conta {self.account_id}"
 
 @dataclass
 class PlaybookGuide:
@@ -80,6 +90,16 @@ class FinOpsAnalysisResult:
     pillar_rightsizing_opportunities: List[FinOpsOpportunity]
     pillar_cost_reduction_opportunities: List[FinOpsOpportunity]
     playbooks: List[PlaybookGuide]
+    account_name: Optional[str] = None
+    account_display: Optional[str] = None
+
+    @property
+    def display_title(self) -> str:
+        if self.account_display:
+            return self.account_display
+        if self.account_name and self.account_name != self.account_id:
+            return f"Conta {self.account_name} ({self.account_id})"
+        return f"Conta {self.account_id}"
 
 @dataclass
 class OrphanPlaybookGuide:
@@ -114,4 +134,14 @@ class OrphanAnalysisResult:
     total_estimated_monthly_waste_usd: float
     categories_breakdown: Dict[str, List[OrphanCandidate]]
     playbooks: List[OrphanPlaybookGuide]
+    account_name: Optional[str] = None
+    account_display: Optional[str] = None
+
+    @property
+    def display_title(self) -> str:
+        if self.account_display:
+            return self.account_display
+        if self.account_name and self.account_name != self.account_id:
+            return f"Conta {self.account_name} ({self.account_id})"
+        return f"Conta {self.account_id}"
 

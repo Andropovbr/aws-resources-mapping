@@ -138,6 +138,23 @@ def test_export_orphan_report_markdown_complete(tmp_path):
     assert "aws ec2 delete-volume --region us-east-1 --volume-id vol-0123456789abcdef0" in content
 
 
+def test_orphan_report_title_with_account_name(tmp_path):
+    output_file = tmp_path / "orphan_title.md"
+    analysis = OrphanAnalysisResult(
+        account_id="807445251352",
+        total_candidates=0,
+        confirmed_orphans_count=0,
+        potential_orphans_count=0,
+        total_estimated_monthly_waste_usd=0.0,
+        categories_breakdown={},
+        playbooks=[],
+        account_name="multicanais-dev"
+    )
+    export_orphan_report_markdown(analysis, str(output_file))
+    content = output_file.read_text(encoding="utf-8")
+    assert "# Relatório Executivo de Identificação de Recursos Órfãos — Conta multicanais-dev (807445251352)" in content
+
+
 def test_export_orphan_report_markdown_empty_and_subdirectories(tmp_path):
     nested_output = tmp_path / "deep" / "nested" / "relatorio_orfaos_vazio.md"
 

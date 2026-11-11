@@ -37,7 +37,7 @@ def export_orphan_report_markdown(analysis: OrphanAnalysisResult, output_path: s
 
     md = []
     # Header & Advisory Warning
-    md.append(f"# Relatório Executivo de Identificação de Recursos Órfãos — Conta {analysis.account_id}\n")
+    md.append(f"# Relatório Executivo de Identificação de Recursos Órfãos — {analysis.display_title}\n")
     md.append(
         "> **Aviso Consultivo:** Todas as estimativas financeiras e sugestões apresentadas constituem "
         "recomendações consultivas de engenharia. Nenhuma exclusão de infraestrutura deve ser realizada sem "

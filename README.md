@@ -23,6 +23,7 @@ A ferramenta opera em modelo **offline-first**, processando exportações CSV ge
   - [Exemplos de Execução](#exemplos-de-execução)
   - [Formato dos Arquivos de Entrada](#formato-dos-arquivos-de-entrada)
 - [Entregáveis Gerados](#entregáveis-gerados)
+- [Metodologia, Coleta de Dados e Guia de Defesa dos Resultados](#metodologia-coleta-de-dados-e-guia-de-defesa-dos-resultados)
 - [Modelo de Inferência e Cálculo de Valores Monetários](#modelo-de-inferência-e-cálculo-de-valores-monetários)
 - [Playbooks Práticos de Investigação FinOps](#playbooks-práticos-de-investigação-finops)
 - [Identificação de Recursos Órfãos e Playbooks de Limpeza](#identificação-de-recursos-órfãos-e-playbooks-de-limpeza)
@@ -108,10 +109,10 @@ flowchart TD
     H --> I["Relatório de Oportunidades FinOps (.md)<br/>(src/exporters/finops_report.py)"]
     M --> N["Relatório de Recursos Órfãos (.md)<br/>(src/exporters/orphan_report.py)"]
 
-    F --> J["output/inventario_<conta>.xlsx"]
-    G --> K["output/relatorio_<conta>.md"]
-    I --> L["output/relatorio_oportunidades_finops_<conta>.md"]
-    N --> O["output/relatorio_recursos_orfaos_<conta>.md"]
+    F --> J["output/spreadsheets/inventario_<conta>.xlsx"]
+    G --> K["output/markdowns/relatorio_<conta>.md"]
+    I --> L["output/markdowns/relatorio_oportunidades_finops_<conta>.md"]
+    N --> O["output/markdowns/relatorio_recursos_orfaos_<conta>.md"]
 
     K --> P["Conversor Word (.docx)<br/>(src/exporters/docx_report.py)"]
     L --> P
@@ -124,7 +125,8 @@ flowchart TD
 ## Estrutura do Repositório
 
 ```text
-resources multicanais-dev/
+resources multicanais/
+├── accounts.json                  # Mapeamento oficial de IDs de conta AWS -> Nomes amigáveis
 ├── contas/
 │   └── multicanais-dev/           # CSVs exportados da conta AWS analisada
 ├── docs/
@@ -132,10 +134,12 @@ resources multicanais-dev/
 │       ├── plans/                 # Planos de implementação detalhados
 │       └── specs/                 # Especificações técnicas e funcionais
 ├── output/                        # Artefatos gerados pelo pipeline
-│   ├── inventario_<conta>.xlsx
-│   ├── relatorio_<conta>.md
-│   ├── relatorio_oportunidades_finops_<conta>.md
-│   ├── relatorio_recursos_orfaos_<conta>.md
+│   ├── spreadsheets/              # Planilhas Excel geradas (.xlsx)
+│   │   └── inventario_<conta>.xlsx
+│   ├── markdowns/                 # Relatórios executivos e técnicos em Markdown (.md)
+│   │   ├── relatorio_<conta>.md
+│   │   ├── relatorio_oportunidades_finops_<conta>.md
+│   │   └── relatorio_recursos_orfaos_<conta>.md
 │   └── docs/                      # Relatórios formatados para Word (.docx)
 │       ├── relatorio_<conta>.docx
 │       ├── relatorio_oportunidades_finops_<conta>.docx
@@ -143,6 +147,7 @@ resources multicanais-dev/
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                    # Entrypoint CLI do pipeline
+│   ├── account_resolver.py        # Resolução e inferência de IDs e nomes de conta
 │   ├── models.py                  # Modelos de dados e Dataclasses
 │   ├── ingestion.py               # Leitura, parsing e deduplicação canônica
 │   ├── correlator.py              # Extração de tokens, agrupamento e topologia
@@ -275,11 +280,91 @@ Após a execução, o pipeline entrega quatro artefatos complementares no diret�
 
 | Arquivo | Formato | Público-Alvo | Conteúdo Principal |
 | :--- | :--- | :--- | :--- |
-| `inventario_<conta>.xlsx` | Planilha Excel | Engenharia & Operações | Pasta de trabalho interativa com formatação visual, filtros automáticos e abas separadas:<br>• **Resumo Executivo** (Métricas consolidadas)<br>• **Aplicações Mapeadas** (Agrupamento por aplicação)<br>• **Inventário Completo** (Todos os recursos com colunas editáveis: *Decisão do Time*, *Responsável*, *Observações*)<br>• **Governança e Segurança** (Isolamento de Control Tower, Prisma, etc.)<br>• **Oportunidades FinOps** (Itens sinalizados para auditoria) |
-| `relatorio_<conta>.md` | Markdown | Liderança Técnica & Arquitetura | Relatório técnico com sumário executivo, tabela de topologia por aplicação, distribuição geográfica de recursos e catálogo de cargas de computação. |
-| `relatorio_oportunidades_finops_<conta>.md` | Markdown | FinOps, Gestão & Diretoria | Relatório executivo com scorecards de economia estimada (mensal e anual), matriz de priorização (*Quick Wins* vs. *Projetos Estruturais*), detalhamento por pilar e playbooks copiáveis do AWS CLI. |
-| `relatorio_recursos_orfaos_<conta>.md` | Markdown | SRE, DevOps & Infraestrutura | Relatório executivo de higienização de nuvem contendo Scorecard de desperdício mensal e anualizado, matriz de esforço x impacto, tabelas de recursos órfãos segregadas pelos 5 domínios e playbooks operacionais executáveis em Bash/AWS CLI (Playbooks 1 a 9). |
+| `spreadsheets/inventario_<conta>.xlsx` | Planilha Excel | Engenharia & Operações | Pasta de trabalho interativa com formatação visual, filtros automáticos e abas separadas:<br>• **Resumo Executivo** (Métricas consolidadas)<br>• **Aplicações Mapeadas** (Agrupamento por aplicação)<br>• **Inventário Completo** (Todos os recursos com colunas editáveis: *Decisão do Time*, *Responsável*, *Observações*)<br>• **Governança e Segurança** (Isolamento de Control Tower, Prisma, etc.)<br>• **Oportunidades FinOps** (Itens sinalizados para auditoria) |
+| `markdowns/relatorio_<conta>.md` | Markdown | Liderança Técnica & Arquitetura | Relatório técnico com sumário executivo, tabela de topologia por aplicação, distribuição geográfica de recursos e catálogo de cargas de computação. |
+| `markdowns/relatorio_oportunidades_finops_<conta>.md` | Markdown | FinOps, Gestão & Diretoria | Relatório executivo com scorecards de economia estimada (mensal e anual), matriz de priorização (*Quick Wins* vs. *Projetos Estruturais*), detalhamento por pilar e playbooks copiáveis do AWS CLI. |
+| `markdowns/relatorio_recursos_orfaos_<conta>.md` | Markdown | SRE, DevOps & Infraestrutura | Relatório executivo de higienização de nuvem contendo Scorecard de desperdício mensal e anualizado, matriz de esforço x impacto, tabelas de recursos órfãos segregadas pelos 5 domínios e playbooks operacionais executáveis em Bash/AWS CLI (Playbooks 1 a 9). |
 | `docs/relatorio_*.docx` | Documento Word (.docx) | Gestão, Chamados & E-mails | Versões formatadas em `.docx` de todos os 3 relatórios executivos e técnicos salvos na subpasta `output/docs/`, com tabelas estilizadas, títulos corporativos e blocos de código prontos para anexar diretamente em tickets do Jira, ServiceNow ou comunicados por e-mail. |
+
+---
+
+## Metodologia, Coleta de Dados e Guia de Defesa dos Resultados
+
+Esta seção documenta a rastreabilidade metodológica do pipeline, fornecendo justificativas técnicas e respostas diretas para apoiar discussões com pares técnicos, arquitetos, auditores e liderança financeira.
+
+### 1. De onde vêm os dados brutos e por que o modelo é Offline-First?
+
+- **Fonte dos Dados:** O pipeline processa arquivos CSV gerados pelo **AWS Resource Groups & Tag Editor** (exportações globais ou segmentadas por região) e por consoles de serviços nativos (EC2, RDS, ElastiCache, Secrets Manager, etc.).
+- **Por que Offline-First?**
+  1. **Segurança Máxima e Sem Permissões de IAM:** A análise não exige credenciais ativas de nuvem (`AWS_ACCESS_KEY_ID`), chaves de API ou permissões de leitura/escrita na infraestrutura durante a execução.
+  2. **Sem Custos Adicionais de API:** Não gera chamadas de API tarifadas nem concorrência com limites de *throttling* do AWS CloudTrail ou AWS Config.
+  3. **Auditabilidade e Reprodutibilidade:** Como os arquivos de entrada são estáticos e versionáveis, a análise pode ser reproduzida a qualquer momento, servindo como evidência temporal de conformidade.
+- **Fusão e Desduplicação Canônica:**
+  - O Tag Editor possui limitação de 1.000 itens por consulta, forçando equipes a exportar múltiplos arquivos CSV.
+  - O pipeline varre todos os CSVs da pasta (`--input-dir`) sob múltiplos encodings (`utf-8-sig`, `utf-8`, `iso-8859-1`, `cp1252`).
+  - Utiliza o `ARN` (ou a chave composta `serviço:tipo_de_recurso:região:identificador`) como chave primária de desduplicação.
+  - Funde atributos mantendo a data mais recente (`LastReportedAt`), recuperando tags ausentes em exports parciais e extraindo o nome amigável do recurso (`resource_name`), ocultando hashes opacos (ex.: `i-090...`).
+
+### 2. De onde saem os valores monetários (USD) e como defendê-los?
+
+> [!IMPORTANT]
+> A ferramenta **não** se conecta ao AWS Cost Explorer em tempo de execução. Os valores monetários representam um **modelo de inferência paramétrica**, calibrado com os preços públicos de lista da AWS para as regiões primárias (`ca-central-1` e `sa-east-1`) e premissas conservadoras de ambientes de desenvolvimento.
+
+Ao ser questionado sobre como os valores foram obtidos, utilize os seguintes fundamentos:
+- **Tarifas Fixas Oficiais da AWS:**
+  - **ALB (Application Load Balancer):** Tarifa horária fixa de $0.0225/h a $0.025/h + LCUs mínimas de baseline ≈ **$22.50 / mês**. Cada ALB extra além do pool compartilhado de redundância (2 ALBs) gera esse custo fixo independentemente do tráfego.
+  - **Elastic IP (IPv4 Público):** Tarifa oficial da AWS para endereços IPv4 não associados a instâncias em execução ($0.005/h × 730h ≈ **$3.65 / mês por IP**).
+- **Premissas Médias Conservadoras (Ambiente Dev/Homologação):**
+  - **Volumes EBS Desanexados:** Volume padrão GP3/GP2 de desenvolvimento (~100 GB × $0.08/GB-mês ≈ **$8.00 / mês**). Na AWS, o faturamento do storage alocado é integral mesmo com o volume no estado `available` (desanexado).
+  - **Snapshots Manuais EBS:** Custo de armazenamento EBS Snapshot ($0.05/GB-mês na AWS) para snapshot incremental médio de dev (~50 GB ≈ **$2.50 / mês**).
+  - **Snapshots Manuais RDS:** Custo de snapshot relacional (~100 GB a $0.095/GB-mês deduzida franquia gratuita ≈ **$5.00 / mês**).
+  - **Recursos Temporários e Testes Abandonados:** Média ponderada de resíduos descartáveis com termos `teste`, `tmp`, `poc`, `demo` (~**$8.00 / mês**).
+  - **Dispersão em Regiões Secundárias:** Custo residual unitário de micro-recursos criados fora do escopo homologado (~**$1.50 / mês**).
+- **Regime Comercial 24x7 (Instance Scheduler):**
+  - Uma instância EC2 dev típica (`t3.medium`/`t4g.medium`) custa ~$35.00/mês.
+  - Uma instância RDS dev típica (`db.t3.medium`) custa ~$55.00/mês.
+  - Em execução contínua, são 720h/mês. O regime comercial (desligamento automático das 20h às 08h e fins de semana inteiros) reduz a operação para ~220h/mês, proporcionando **~60% de economia direta** na fração horária de computação.
+
+### 3. Como a aplicação sabe que um recurso é Órfão?
+
+A identificação de recursos órfãos é processada pelo módulo `src/orphan_analyzer.py` e abrange 5 domínios arquiteturais (Armazenamento, Rede & Conectividade, Balanceamento de Carga, Cache & Dados In-Memory e Segurança/Logs).
+
+O pipeline divide o nível de certeza em duas categorias para garantir total rigor técnico:
+
+1. **`[CONFIRMADO ÓRFÃO]` (Certeza Lógica Conclusiva):**
+   - O próprio inventário estático correlacionado comprova que o recurso não possui dependências ativas.
+   - *Exemplo prático:* Usuários e Listas de Controle de Acesso (ACLs) do Amazon MemoryDB ou ElastiCache criados em regiões onde o inventário canônico comprova que não existe **nenhum** cluster ativo de cache provisionado. O descarte possui risco operacional praticamente nulo.
+2. **`[CANDIDATO A ÓRFÃO]` (Evidência Estrutural com Necessidade de Validação):**
+   - Recursos que se encontram isolados ou em estado típico de ociosidade, mas cuja confirmação definitiva depende de telemetria em tempo de execução que não consta em CSVs estáticos do Tag Editor.
+   - *Exemplos práticos:*
+     - *Volumes EBS:* Constam no inventário, mas o CSV estático não expõe se o status de anexo é `in-use` ou `available`.
+     - *Elastic IPs:* Endereços alocados na conta, com necessidade de checar se `NetworkInterfaceId` está nulo.
+     - *Application Load Balancers & Target Groups:* Provisionados em dev, exigindo confirmação de se a métrica `RequestCount` zerou nos últimos 14 dias ou se os alvos estão saudáveis.
+     - *Security Groups:* Grupos criados manualmente (excluindo o SG `default`), exigindo confirmação de ausência de ENIs vinculadas.
+     - *Log Groups:* Grupos de log sem retenção definida (*Never Expire*), retendo dados perpetuamente.
+   - **Por que a ferramenta não exclui nem rotula sumariamente como lixo?** Porque ambientes corporativos exigem prudência. Para cada candidato, a ferramenta anexa o comando exato de inspeção do AWS CLI no playbook para confirmação antes de qualquer exclusão.
+
+### 4. Como são identificadas as Oportunidades de FinOps?
+
+O módulo `src/finops_analyzer.py` avalia os recursos cruzando a topologia inferida com 3 pilares de otimização de nuvem:
+
+| Pilar FinOps | Critério de Detecção | Justificativa Técnica e Estratégica |
+| :--- | :--- | :--- |
+| **Padrões de Consumo & Anomalias** | • **Dispersão Geográfica:** Recursos criados fora das regiões oficiais do projeto (`ca-central-1` e `sa-east-1`).<br>• **Execução Contínua 24x7:** Ambientes de teste/dev com instâncias EC2 e RDS ligadas ininterruptamente (720h/mês). | Ambientes de desenvolvimento não devem manter recursos ativos em regiões secundárias sem aprovação. Desligar instâncias fora do expediente comercial via AWS Instance Scheduler evita desperdício de até 60% do custo computacional. |
+| **Superdimensionamento & Right-sizing** | • **Desproporção ALB vs. EC2:** Razão desbalanceada de balanceadores para instâncias (ex.: 9 ALBs para 2 EC2s).<br>• **Subutilização de Computação:** Instâncias EC2 operando em famílias legadas ou superdimensionadas. | Cada ALB possui custo fixo mensal. Várias aplicações web de menor tráfego podem compartilhar um único ALB através de regras de roteamento baseadas em Host/Path. Instâncias x86 antigas podem migrar para AWS Graviton (`t4g`). |
+| **Redução Direta de Custos** | • **Resíduos e Endereços Ociosos:** Elastic IPs alocados e volumes EBS desanexados.<br>• **Nomenclatura de Teste:** Recursos contendo `teste`, `temp`, `poc`, `demo`, `dummy` ou `sample` no identificador. | Recursos descartáveis criados pontualmente para testes de engenharia tendem a ser esquecidos após o término da validação, gerando acúmulo financeiro contínuo. |
+
+### 5. Guia Rápido de Respostas / FAQ para Alinhamentos Técnicos
+
+Ao apresentar o relatório para outros times ou lideranças, utilize esta tabela de consulta rápida:
+
+| Dúvida Comum / Questionamento | Resposta Oficial e Procedimento Recomendado |
+| :--- | :--- |
+| *"A ferramenta vai apagar ou alterar algum recurso da AWS?"* | **Não.** O pipeline é 100% analítico e opera em modelo *read-only offline*. Nenhuma modificação é feita na infraestrutura. Todas as ações dependem de aprovação humana e execução manual via playbooks. |
+| *"Esses valores em dólares batem exatamente com a nossa fatura da AWS?"* | **Não necessariamente.** Os valores apresentados são estimativas paramétricas baseadas nos preços públicos de lista da AWS (*On-Demand list price*). Eles não consideram descontos de *Savings Plans*, *Reserved Instances*, créditos promocionais da AWS ou impostos locais (ex.: retenções tributárias no Brasil). Devem ser usados para priorização de esforço e cálculo de ordem de grandeza de ROI. |
+| *"Como saber se um recurso com nome 'teste' realmente pode ser apagado?"* | O relatório classifica esses itens com status `[NECESSITA ANÁLISE]`. No arquivo Excel entregue (`inventario_<conta>.xlsx`), a equipe técnica tem as colunas dedicadas **Decisão do Time**, **Responsável** e **Observações** para auditar e registrar a finalidade de cada item. |
+| *"Por que tantos recursos aparecem como 'Candidato a Órfão' em vez de confirmados?"* | Trata-se de um mecanismo de segurança (*guardrail*). Como a exportação CSV do Tag Editor não traz telemetria em tempo real (como métricas de CPU/rede do CloudWatch ou status de anexo em milissegundos), marcar como "candidato" evita falsos positivos e orienta o time a rodar o comando CLI fornecido antes de agir. |
+| *"Como garantir que um snapshot ou volume não seja excluído por engano?"* | Todos os playbooks do pipeline incluem uma etapa mandatória de segurança (*Guardrail*), instruindo a criação de snapshot preventivo ou validação de backup antes de qualquer exclusão definitiva. |
 
 ---
 

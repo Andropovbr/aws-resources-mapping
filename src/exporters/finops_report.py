@@ -25,7 +25,7 @@ def export_finops_opportunities_markdown(analysis: FinOpsAnalysisResult, output_
     annual_savings = analysis.total_estimated_monthly_savings_usd * 12
 
     md = []
-    md.append(f"# Relatório Executivo de Oportunidades FinOps — Conta {analysis.account_id}\n")
+    md.append(f"# Relatório Executivo de Oportunidades FinOps — {analysis.display_title}\n")
     md.append("> **Aviso Consultivo:** Todas as estimativas financeiras e sugestões apresentadas constituem recomendações consultivas para priorização estratégica da equipe de engenharia e liderança. Nenhuma alteração destrutiva deve ser executada sem validação técnica prévia de negócio.\n")
 
     # 1. Scorecard Executivo

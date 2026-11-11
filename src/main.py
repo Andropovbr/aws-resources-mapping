@@ -16,10 +16,17 @@ from src.exporters.finops_report import export_finops_opportunities_markdown
 from src.exporters.orphan_report import export_orphan_report_markdown
 from src.exporters.docx_report import convert_markdown_to_docx
 from src.models import InventoryReportData
+from src.account_resolver import resolve_account_info
 
 def run_pipeline(input_dir: str, output_dir: str, account: str = "") -> Tuple[str, str, str, str]:
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
+    spreadsheets_dir = out_path / "spreadsheets"
+    markdowns_dir = out_path / "markdowns"
+    docs_dir = out_path / "docs"
+    spreadsheets_dir.mkdir(parents=True, exist_ok=True)
+    markdowns_dir.mkdir(parents=True, exist_ok=True)
+    docs_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[*] Lendo e desduplicando CSVs em: {input_dir}")
     resources = load_and_deduplicate_csvs(input_dir)
@@ -28,7 +35,14 @@ def run_pipeline(input_dir: str, output_dir: str, account: str = "") -> Tuple[st
     if not resources:
         raise ValueError(f"Nenhum recurso encontrado no diretório: {input_dir}")
 
-    account_id = account or resources[0].aws_account or "aws-account"
+    raw_account_id = resources[0].aws_account if resources else ""
+    account_info = resolve_account_info(
+        account_arg=account,
+        raw_account_id=raw_account_id,
+        input_dir=input_dir
+    )
+
+    print(f"[*] Conta identificada: {account_info.display_title}")
 
     print("[*] Correlacionando recursos e inferindo aplicações...")
     resources, clusters = correlate_and_classify_resources(resources)
@@ -44,7 +58,7 @@ def run_pipeline(input_dir: str, output_dir: str, account: str = "") -> Tuple[st
     finops_summary = Counter(r.finops_suggestion for r in resources)
 
     report_data = InventoryReportData(
-        account_id=account_id,
+        account_id=account_info.account_id,
         total_resources=len(resources),
         unique_arns=len(set(r.arn for r in resources if r.arn)),
         regions=dict(regions),
@@ -52,16 +66,18 @@ def run_pipeline(input_dir: str, output_dir: str, account: str = "") -> Tuple[st
         macro_domains=dict(macro_domains),
         finops_summary=dict(finops_summary),
         clusters=clusters,
-        all_resources=resources
+        all_resources=resources,
+        account_name=account_info.account_name,
+        account_display=account_info.display_title
     )
 
-    clean_account_name = re.sub(r'[^\w\-.]', '_', account_id)
-    excel_file = str(out_path / f"inventario_{clean_account_name}.xlsx")
-    md_file = str(out_path / f"relatorio_{clean_account_name}.md")
+    clean_account_name = account_info.file_slug
+    excel_file = str(spreadsheets_dir / f"inventario_{clean_account_name}.xlsx")
+    md_file = str(markdowns_dir / f"relatorio_{clean_account_name}.md")
     finops_opp_md_filename = f"relatorio_oportunidades_finops_{clean_account_name}.md"
-    finops_opp_md_path = str(out_path / finops_opp_md_filename)
+    finops_opp_md_path = str(markdowns_dir / finops_opp_md_filename)
     orphan_md_filename = f"relatorio_recursos_orfaos_{clean_account_name}.md"
-    orphan_md_path = str(out_path / orphan_md_filename)
+    orphan_md_path = str(markdowns_dir / orphan_md_filename)
 
     print(f"[*] Gerando pasta de trabalho Excel: {excel_file}")
     generate_excel_workbook(report_data, excel_file)
@@ -80,8 +96,6 @@ def run_pipeline(input_dir: str, output_dir: str, account: str = "") -> Tuple[st
     print(f"[OK] Relatório executivo de recursos órfãos gerado: {orphan_md_path}")
 
     # 7. Exportação em Formato Word (.docx) na subpasta docs/
-    docs_dir = out_path / "docs"
-    docs_dir.mkdir(parents=True, exist_ok=True)
     tech_docx = str(docs_dir / f"relatorio_{clean_account_name}.docx")
     finops_docx = str(docs_dir / f"relatorio_oportunidades_finops_{clean_account_name}.docx")
     orphan_docx = str(docs_dir / f"relatorio_recursos_orfaos_{clean_account_name}.docx")

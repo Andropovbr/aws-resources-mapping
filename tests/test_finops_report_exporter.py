@@ -57,6 +57,24 @@ def test_export_finops_opportunities_markdown(tmp_path):
     # Verificar indicador de lista vazia no Pilar A e C
     assert "_Nenhuma oportunidade identificada neste pilar._" in content
 
+def test_export_finops_opportunities_title_formatting(tmp_path):
+    output_file = tmp_path / "finops_title.md"
+    analysis = FinOpsAnalysisResult(
+        account_id="807445251352",
+        total_opportunities=0,
+        immediate_actions_count=0,
+        needs_analysis_count=0,
+        total_estimated_monthly_savings_usd=0.0,
+        pillar_consumption_opportunities=[],
+        pillar_rightsizing_opportunities=[],
+        pillar_cost_reduction_opportunities=[],
+        playbooks=[],
+        account_name="multicanais-dev"
+    )
+    export_finops_opportunities_markdown(analysis, str(output_file))
+    content = output_file.read_text(encoding="utf-8")
+    assert "# Relatório Executivo de Oportunidades FinOps — Conta multicanais-dev (807445251352)" in content
+
 def test_export_finops_opportunities_markdown_empty_and_subdirectories(tmp_path):
     nested_output = tmp_path / "deep" / "nested" / "relatorio.md"
     analysis = FinOpsAnalysisResult(

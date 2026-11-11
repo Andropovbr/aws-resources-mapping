@@ -3,13 +3,13 @@ from src.models import InventoryReportData
 
 def generate_markdown_report(data: InventoryReportData, output_file: str) -> str:
     md = []
-    md.append(f"# Relatório Executivo de Inventário AWS e FinOps — Conta {data.account_id}\n")
+    md.append(f"# Relatório Executivo de Inventário AWS e FinOps — {data.display_title}\n")
     md.append("> **Aviso Legal:** Todas as classificações de FinOps constituem sugestões consultivas para suporte à auditoria do time técnico e não devem ser executadas sem validação prévia de negócio.\n")
     
     # 1. Sumário Executivo
     md.append("## 1. Sumário Executivo")
     md.append(f"- **Total de Recursos Únicos Analisados:** `{data.total_resources}`")
-    md.append(f"- **Conta AWS:** `{data.account_id}`")
+    md.append(f"- **Conta AWS:** `{data.display_title}`")
     md.append(f"- **Regiões Detectadas:** {', '.join(f'`{r}` ({c})' for r, c in sorted(data.regions.items(), key=lambda x: x[1], reverse=True))}")
     md.append(f"- **Divisão Macro por Domínio:**")
     for dom, count in data.macro_domains.items():
