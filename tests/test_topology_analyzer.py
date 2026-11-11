@@ -1,9 +1,16 @@
 import pytest
-from src.models import ResourceRecord
+from src.models import (
+    ResourceRecord,
+    TopologyComponent,
+    InventoryReportData,
+    ApplicationCluster
+)
 from src.topology_analyzer import (
     load_application_catalog,
     classify_layer,
-    resolve_ownership
+    resolve_ownership,
+    infer_connections,
+    analyze_application_topology
 )
 
 def test_classify_layer():
@@ -136,3 +143,91 @@ def test_load_application_catalog():
 
     cat_none = load_application_catalog("nonexistent_path_xyz.json")
     assert cat_none == {}
+
+def test_infer_connections():
+    comp_alb = TopologyComponent(
+        id="alb-vdo", name="alb-vdo", service="elasticloadbalancing",
+        layer="Ingresso & Endpoints", arn="arn:aws:alb:123:alb-vdo",
+        region="us-east-1", squad="Squad Marketing"
+    )
+    comp_tg = TopologyComponent(
+        id="tg-vdo-80", name="tg-vdo-80", service="elasticloadbalancing",
+        layer="Ingresso & Endpoints", arn="arn:aws:tg:123:tg-vdo-80",
+        region="us-east-1", squad="Squad Marketing"
+    )
+    comp_ec2 = TopologyComponent(
+        id="i-0123vdo", name="vdo-web-server", service="ec2",
+        layer="Computação & Lógica", arn="arn:aws:ec2:123:i-0123vdo",
+        region="us-east-1", squad="Squad Marketing"
+    )
+    comp_rds = TopologyComponent(
+        id="vdo-mysql-prd", name="vdo-mysql-prd", service="rds",
+        layer="Banco de Dados & Cache", arn="arn:aws:rds:123:db:vdo-mysql-prd",
+        region="us-east-1", squad="Squad Marketing"
+    )
+
+    components = [comp_alb, comp_tg, comp_ec2, comp_rds]
+    connections = infer_connections(components, slug="vdo")
+
+    # Verifica se conexões foram criadas
+    assert len(connections) >= 2
+    # Verifica vínculo ALB -> TG
+    assert any(c.source_id == "alb-vdo" and c.target_id == "tg-vdo-80" for c in connections)
+    # Verifica vínculo TG -> EC2
+    assert any(c.source_id == "tg-vdo-80" and c.target_id == "i-0123vdo" for c in connections)
+    # Verifica vínculo EC2 -> RDS
+    assert any(c.source_id == "i-0123vdo" and c.target_id == "vdo-mysql-prd" for c in connections)
+
+    # Verifica se upstream_ids e downstream_ids foram preenchidos
+    assert "tg-vdo-80" in comp_alb.downstream_ids
+    assert "alb-vdo" in comp_tg.upstream_ids
+    assert "i-0123vdo" in comp_tg.downstream_ids
+    assert "vdo-mysql-prd" in comp_ec2.downstream_ids
+
+def test_analyze_application_topology_e2e_structure():
+    r_alb = ResourceRecord(
+        identifier="alb-vdo", arn="arn:aws:alb:123:alb-vdo", resource_type="elasticloadbalancing:loadbalancer",
+        region="us-east-1", aws_account="807445251352", application_raw="VDO & Promoção Digital",
+        cfn_resource_type="AWS::ElasticLoadBalancingV2::LoadBalancer", last_reported_at="",
+        service="elasticloadbalancing", tags="", inferred_app="VDO & Promoção Digital"
+    )
+    r_ec2 = ResourceRecord(
+        identifier="i-1234vdo", arn="arn:aws:ec2:123:i-1234vdo", resource_type="ec2:instance",
+        region="us-east-1", aws_account="807445251352", application_raw="VDO & Promoção Digital",
+        cfn_resource_type="AWS::EC2::Instance", last_reported_at="",
+        service="ec2", tags="", inferred_app="VDO & Promoção Digital"
+    )
+    r_shared = ResourceRecord(
+        identifier="shared-vpc", arn="arn:aws:ec2:123:vpc/shared-vpc", resource_type="ec2:vpc",
+        region="us-east-1", aws_account="807445251352", application_raw="",
+        cfn_resource_type="AWS::EC2::VPC", last_reported_at="",
+        service="ec2", tags="", macro_domain="Infraestrutura Compartilhada", inferred_app="Infraestrutura Compartilhada"
+    )
+
+    cluster_vdo = ApplicationCluster(
+        name="VDO & Promoção Digital",
+        slug="vdo-promocao",
+        resources=[r_alb, r_ec2]
+    )
+
+    report_data = InventoryReportData(
+        account_id="807445251352",
+        total_resources=3,
+        unique_arns=3,
+        regions={"us-east-1": 3},
+        services={"elasticloadbalancing": 1, "ec2": 2},
+        macro_domains={"Aplicação": 2, "Infraestrutura Compartilhada": 1},
+        finops_summary={"Avaliar": 3},
+        clusters=[cluster_vdo],
+        all_resources=[r_alb, r_ec2, r_shared],
+        account_name="multicanais-dev"
+    )
+
+    result = analyze_application_topology(report_data)
+
+    assert result.total_applications == 1
+    assert result.total_components == 2
+    assert len(result.applications) == 1
+    assert result.applications[0].app_name == "VDO & Promoção Digital"
+    assert len(result.shared_infrastructure) == 1
+    assert result.shared_infrastructure[0].id == "shared-vpc"
