@@ -34,7 +34,8 @@ def _generate_mermaid_diagram(app: ApplicationTopology) -> str:
                 if len(disp_name) > 35:
                     disp_name = disp_name[:32] + "..."
                 label = f"{disp_name} ({c.service})"
-                lines.append(f'    {node_id}["{label}"]')
+                safe_label = label.replace('"', "'")
+                lines.append(f'    {node_id}["{safe_label}"]')
             lines.append("  end")
 
     # Arestas / Conexões
@@ -44,8 +45,9 @@ def _generate_mermaid_diagram(app: ApplicationTopology) -> str:
             src = _sanitize_node_id(conn.source_id)
             tgt = _sanitize_node_id(conn.target_id)
             lbl = conn.label or ""
-            if lbl:
-                lines.append(f'  {src} -->|"{lbl}"| {tgt}')
+            safe_lbl = lbl.replace('"', "'")
+            if safe_lbl:
+                lines.append(f'  {src} -->|"{safe_lbl}"| {tgt}')
             else:
                 lines.append(f"  {src} --> {tgt}")
     else:
@@ -166,6 +168,9 @@ def export_topology_report_markdown(analysis: TopologyAnalysisResult, output_pat
         for c in analysis.shared_infrastructure[:50]:  # Limita para não inflar desnecessariamente o relatório
             lines.append(f"| `{c.id}` | `{c.service}` | {c.layer} | {c.squad} | `{c.region}` |")
         lines.append("")
+        if len(analysis.shared_infrastructure) > 50:
+            lines.append(f"> *Nota: Exibindo os primeiros 50 itens de {len(analysis.shared_infrastructure)}. Consulte o Excel para a listagem integral.*")
+            lines.append("")
 
     if analysis.unassigned_components:
         lines.extend([
@@ -181,6 +186,9 @@ def export_topology_report_markdown(analysis: TopologyAnalysisResult, output_pat
         for c in analysis.unassigned_components[:50]:
             lines.append(f"| `{c.id}` | `{c.service}` | {c.layer} | `{c.region}` |")
         lines.append("")
+        if len(analysis.unassigned_components) > 50:
+            lines.append(f"> *Nota: Exibindo os primeiros 50 itens de {len(analysis.unassigned_components)}. Consulte o Excel para a listagem integral.*")
+            lines.append("")
 
     with open(out, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))

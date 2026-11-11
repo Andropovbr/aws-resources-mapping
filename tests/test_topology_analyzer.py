@@ -59,6 +59,15 @@ def test_classify_layer():
     )
     assert classify_layer(r5) == "Armazenamento & Apoio"
 
+    # Storage - EBS Volume (service=ec2)
+    r6 = ResourceRecord(
+        identifier="vol-0123456789abcdef0", arn="arn:aws:ec2:us-east-1:123:volume/vol-0123456789abcdef0",
+        resource_type="ec2:volume", region="us-east-1", aws_account="123",
+        application_raw="", cfn_resource_type="AWS::EC2::Volume",
+        last_reported_at="", service="ec2", tags=""
+    )
+    assert classify_layer(r6) == "Armazenamento & Apoio"
+
 def test_resolve_ownership():
     catalog = {
         "vdo-promocao": {
@@ -102,7 +111,7 @@ def test_resolve_ownership():
     squad_infra, _, _ = resolve_ownership(r_infra, catalog, inferred_app="Infraestrutura Compartilhada")
     assert squad_infra == "Squad Infraestrutura Cloud"
 
-    # Tag squad/team fallback
+    # Tag squad/team fallback com owner e criticality
     r_tag = ResourceRecord(
         identifier="custom-worker", arn="arn:aws:ec2:123:instance/i-custom",
         resource_type="ec2:instance", region="us-east-1", aws_account="123",
@@ -111,8 +120,20 @@ def test_resolve_ownership():
     )
     squad_tag, owner_tag, crit_tag = resolve_ownership(r_tag, catalog)
     assert squad_tag == "Squad Payments"
-    assert owner_tag is None
+    assert owner_tag == "lead"
     assert crit_tag == "Padrão"
+
+    # Tag com responsavel e criticidade
+    r_tag2 = ResourceRecord(
+        identifier="custom-db", arn="arn:aws:rds:123:db/custom-db",
+        resource_type="rds:db", region="us-east-1", aws_account="123",
+        application_raw="", cfn_resource_type="", last_reported_at="",
+        service="rds", tags="responsavel=mariana;criticidade=alta;team=checkout"
+    )
+    squad_tag2, owner_tag2, crit_tag2 = resolve_ownership(r_tag2, catalog)
+    assert squad_tag2 == "Squad Checkout"
+    assert owner_tag2 == "mariana"
+    assert crit_tag2 == "Alta"
 
     # Inferred app
     r_app = ResourceRecord(
@@ -165,24 +186,50 @@ def test_infer_connections():
         layer="Banco de Dados & Cache", arn="arn:aws:rds:123:db:vdo-mysql-prd",
         region="us-east-1", squad="Squad Marketing"
     )
+    comp_sqs = TopologyComponent(
+        id="queue-vdo-events", name="queue-vdo-events", service="sqs",
+        layer="Mensageria & Filas", arn="arn:aws:sqs:us-east-1:123:queue-vdo-events",
+        region="us-east-1", squad="Squad Marketing"
+    )
+    comp_lambda = TopologyComponent(
+        id="func-vdo-processor", name="func-vdo-processor", service="lambda",
+        layer="Computação & Lógica", arn="arn:aws:lambda:us-east-1:123:function:func-vdo-processor",
+        region="us-east-1", squad="Squad Marketing"
+    )
+    comp_s3 = TopologyComponent(
+        id="bucket-vdo-assets", name="bucket-vdo-assets", service="s3",
+        layer="Armazenamento & Apoio", arn="arn:aws:s3:::bucket-vdo-assets",
+        region="us-east-1", squad="Squad Marketing"
+    )
 
-    components = [comp_alb, comp_tg, comp_ec2, comp_rds]
+    components = [comp_alb, comp_tg, comp_ec2, comp_rds, comp_sqs, comp_lambda, comp_s3]
     connections = infer_connections(components, slug="vdo")
 
     # Verifica se conexões foram criadas
-    assert len(connections) >= 2
+    assert len(connections) >= 5
     # Verifica vínculo ALB -> TG
     assert any(c.source_id == "alb-vdo" and c.target_id == "tg-vdo-80" for c in connections)
     # Verifica vínculo TG -> EC2
     assert any(c.source_id == "tg-vdo-80" and c.target_id == "i-0123vdo" for c in connections)
     # Verifica vínculo EC2 -> RDS
     assert any(c.source_id == "i-0123vdo" and c.target_id == "vdo-mysql-prd" for c in connections)
+    # Verifica vínculo SQS -> Lambda (Mensageria -> Computação)
+    assert any(c.source_id == "queue-vdo-events" and c.target_id == "func-vdo-processor" for c in connections)
+    # Verifica vínculo Computação -> S3 (Compute -> Storage)
+    assert any(c.source_id == "i-0123vdo" and c.target_id == "bucket-vdo-assets" for c in connections)
+    assert any(c.source_id == "func-vdo-processor" and c.target_id == "bucket-vdo-assets" for c in connections)
 
     # Verifica se upstream_ids e downstream_ids foram preenchidos
     assert "tg-vdo-80" in comp_alb.downstream_ids
     assert "alb-vdo" in comp_tg.upstream_ids
     assert "i-0123vdo" in comp_tg.downstream_ids
     assert "vdo-mysql-prd" in comp_ec2.downstream_ids
+    assert "func-vdo-processor" in comp_sqs.downstream_ids
+    assert "queue-vdo-events" in comp_lambda.upstream_ids
+    assert "bucket-vdo-assets" in comp_ec2.downstream_ids
+    assert "bucket-vdo-assets" in comp_lambda.downstream_ids
+    assert "i-0123vdo" in comp_s3.upstream_ids
+    assert "func-vdo-processor" in comp_s3.upstream_ids
 
 def test_analyze_application_topology_e2e_structure():
     r_alb = ResourceRecord(
@@ -231,3 +278,34 @@ def test_analyze_application_topology_e2e_structure():
     assert result.applications[0].app_name == "VDO & Promoção Digital"
     assert len(result.shared_infrastructure) == 1
     assert result.shared_infrastructure[0].id == "shared-vpc"
+
+def test_analyze_application_topology_catalog_lookup_by_slug():
+    r_item = ResourceRecord(
+        identifier="portal-alb", arn="arn:aws:alb:123:portal-alb", resource_type="elasticloadbalancing:loadbalancer",
+        region="us-east-1", aws_account="807445251352", application_raw="portal",
+        cfn_resource_type="AWS::ElasticLoadBalancingV2::LoadBalancer", last_reported_at="",
+        service="elasticloadbalancing", tags="", inferred_app="portal"
+    )
+    # Nome não bate ("Portal do Cliente"), mas slug bate com a chave do catálogo ("canais-digitais")
+    cluster = ApplicationCluster(
+        name="Portal do Cliente",
+        slug="canais-digitais",
+        resources=[r_item]
+    )
+    report_data = InventoryReportData(
+        account_id="807445251352",
+        total_resources=1,
+        unique_arns=1,
+        regions={"us-east-1": 1},
+        services={"elasticloadbalancing": 1},
+        macro_domains={"Aplicação": 1},
+        finops_summary={},
+        clusters=[cluster],
+        all_resources=[r_item]
+    )
+    result = analyze_application_topology(report_data)
+    assert len(result.applications) == 1
+    app = result.applications[0]
+    assert app.squad == "Squad Canais & Portais"
+    assert app.owner == "techlead-canais@empresa.com"
+    assert app.criticality == "Crítica / Tier 1"

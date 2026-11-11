@@ -85,7 +85,11 @@ def classify_layer(record: ResourceRecord) -> str:
         return LAYER_DATABASE
 
     # 5. Armazenamento & Apoio
-    if svc in ("s3", "secretsmanager", "efs", "fsx"):
+    if (
+        svc in ("s3", "secretsmanager", "efs", "fsx")
+        or "volume" in res_type
+        or "volume" in cfn_type
+    ):
         return LAYER_STORAGE
 
     # Fallback por serviço
@@ -125,23 +129,40 @@ def resolve_ownership(
 
     # 2. Tags do CSV
     tags_lower = r_tags.lower()
+    tag_squad = None
+    tag_owner = None
+    tag_crit = None
+
     if "squad=" in tags_lower or "team=" in tags_lower:
         match = re.search(r"(?:squad|team)=([^;,\s]+)", tags_lower)
         if match:
             squad_tag = match.group(1).strip()
-            return f"Squad {squad_tag.title()}", None, "Padrão"
+            tag_squad = f"Squad {squad_tag.title()}"
+
+    if "owner=" in tags_lower or "responsavel=" in tags_lower:
+        match_owner = re.search(r"(?:owner|responsavel)=([^;,\s]+)", tags_lower)
+        if match_owner:
+            tag_owner = match_owner.group(1).strip()
+
+    if "criticality=" in tags_lower or "criticidade=" in tags_lower:
+        match_crit = re.search(r"(?:criticality|criticidade)=([^;,\s]+)", tags_lower)
+        if match_crit:
+            tag_crit = match_crit.group(1).strip().capitalize()
+
+    if tag_squad:
+        return tag_squad, tag_owner, tag_crit or "Padrão"
 
     # 3. Inferred App / Cluster
     if inferred_app and inferred_app not in ("Não Identificado", "Infraestrutura Compartilhada", "Governança & Segurança"):
-        return f"Squad {inferred_app}", None, "Padrão"
+        return f"Squad {inferred_app}", tag_owner, tag_crit or "Padrão"
 
     # 4. Fallbacks
     if record.macro_domain == "Governança" or inferred_app == "Governança & Segurança":
-        return "Squad Segurança & Governança", None, "Padrão"
+        return "Squad Segurança & Governança", tag_owner, tag_crit or "Padrão"
     elif record.macro_domain == "Infraestrutura Compartilhada" or inferred_app == "Infraestrutura Compartilhada":
-        return "Squad Infraestrutura Cloud", None, "Padrão"
+        return "Squad Infraestrutura Cloud", tag_owner, tag_crit or "Padrão"
 
-    return "Squad A Definir", None, "Padrão"
+    return "Squad A Definir", tag_owner, tag_crit or "Padrão"
 
 def infer_connections(components: List[TopologyComponent], slug: str = "") -> List[ComponentConnection]:
     """
@@ -336,8 +357,8 @@ def analyze_application_topology(
         app_desc = f"Aplicação {cl.name} sustentada na infraestrutura AWS"
 
         # Se houver catálogo correspondente
-        for app_info in catalog.values():
-            if app_info.get("name") == cl.name:
+        for app_key, app_info in catalog.items():
+            if app_info.get("name") == cl.name or app_key == cl.slug or app_info.get("slug") == cl.slug:
                 app_squad = app_info.get("squad", app_squad)
                 app_owner = app_info.get("owner", app_owner)
                 app_crit = app_info.get("criticality", app_crit)

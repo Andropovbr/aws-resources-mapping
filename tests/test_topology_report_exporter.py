@@ -147,3 +147,73 @@ def test_export_topology_report_markdown():
         assert "shared-vpc-01" in content
         assert "## 5. Gaps de Governança (Componentes a Classificar)" in content
         assert "orphan-vol-01" in content
+
+def test_generate_mermaid_diagram_quotes_sanitization():
+    comp = TopologyComponent(
+        id="comp-1",
+        name='app "quoted" service',
+        service="ec2",
+        layer="Computação & Lógica",
+        arn="arn:aws:ec2:123:comp-1",
+        region="us-east-1",
+        squad="Squad Test"
+    )
+    conn = ComponentConnection(
+        source_id="comp-1",
+        target_id="comp-1",
+        connection_type="Self",
+        label='calls "internal" api'
+    )
+    app = ApplicationTopology(
+        app_name="App Quoted",
+        slug="app-quoted",
+        squad="Squad Test",
+        owner="lead",
+        criticality="Média",
+        description="Teste quotes",
+        components=[comp],
+        connections=[conn]
+    )
+    diagram = _generate_mermaid_diagram(app)
+    # Aspas duplas devem ter sido substituídas por simples
+    assert 'node_comp_1["app \'quoted\' service (ec2)"]' in diagram
+    assert '-->|"calls \'internal\' api"|' in diagram
+
+def test_export_topology_report_markdown_truncation_note():
+    shared_comps = [
+        TopologyComponent(
+            id=f"shared-{i}", name=f"shared-{i}", service="ec2",
+            layer="Infraestrutura Compartilhada", arn=f"arn:aws:ec2:123:vpc/{i}",
+            region="us-east-1", squad="Infra"
+        )
+        for i in range(55)
+    ]
+    unassigned_comps = [
+        TopologyComponent(
+            id=f"orphan-{i}", name=f"vol-{i}", service="ebs",
+            layer="A Classificar", arn=f"arn:aws:ec2:123:vol/{i}",
+            region="us-east-1", squad="A Definir"
+        )
+        for i in range(60)
+    ]
+    analysis = TopologyAnalysisResult(
+        account_id="123456789012",
+        account_name="test-acc",
+        total_applications=0,
+        total_components=115,
+        total_connections=0,
+        assigned_squads_count=0,
+        squad_distribution={},
+        layer_distribution={},
+        applications=[],
+        shared_infrastructure=shared_comps,
+        unassigned_components=unassigned_comps
+    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_file = os.path.join(tmpdir, "truncation_test.md")
+        export_topology_report_markdown(analysis, out_file)
+        with open(out_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        assert "> *Nota: Exibindo os primeiros 50 itens de 55. Consulte o Excel para a listagem integral.*" in content
+        assert "> *Nota: Exibindo os primeiros 50 itens de 60. Consulte o Excel para a listagem integral.*" in content
