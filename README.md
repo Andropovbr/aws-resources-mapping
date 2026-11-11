@@ -1,7 +1,7 @@
 # AWS Resource Mapping & FinOps Pipeline
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/Tests-63%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-87%20passed-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)]()
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-informational.svg)]()
 
@@ -27,6 +27,7 @@ A ferramenta opera em modelo **offline-first**, processando exportações CSV ge
 - [Modelo de Inferência e Cálculo de Valores Monetários](#modelo-de-inferência-e-cálculo-de-valores-monetários)
 - [Playbooks Práticos de Investigação FinOps](#playbooks-práticos-de-investigação-finops)
 - [Identificação de Recursos Órfãos e Playbooks de Limpeza](#identificação-de-recursos-órfãos-e-playbooks-de-limpeza)
+- [Topologia de Arquitetura de Aplicações e Governança (Ownership)](#topologia-de-arquitetura-de-aplicações-e-governança-ownership)
 - [Execução de Testes Automatizados](#execução-de-testes-automatizados)
 - [Licença e Governança](#licença-e-governança)
 
@@ -105,18 +106,23 @@ flowchart TD
     E --> G["Relatório Técnico (.md)<br/>(src/exporters/markdown.py)"]
     E --> H["Análise Estratégica FinOps<br/>(src/finops_analyzer.py)"]
     E --> M["Detecção de Recursos Órfãos<br/>(src/orphan_analyzer.py)"]
+    E --> R["Topologia de Aplicações & Ownership<br/>(src/topology_analyzer.py)"]
     
     H --> I["Relatório de Oportunidades FinOps (.md)<br/>(src/exporters/finops_report.py)"]
     M --> N["Relatório de Recursos Órfãos (.md)<br/>(src/exporters/orphan_report.py)"]
+    R --> S["Relatório de Arquitetura de Aplicações (.md)<br/>(src/exporters/topology_report.py)"]
+    R -.-> F
 
     F --> J["output/spreadsheets/inventario_<conta>.xlsx"]
     G --> K["output/markdowns/relatorio_<conta>.md"]
     I --> L["output/markdowns/relatorio_oportunidades_finops_<conta>.md"]
     N --> O["output/markdowns/relatorio_recursos_orfaos_<conta>.md"]
+    S --> T["output/markdowns/relatorio_arquitetura_aplicacoes_<conta>.md"]
 
     K --> P["Conversor Word (.docx)<br/>(src/exporters/docx_report.py)"]
     L --> P
     O --> P
+    T --> P
     P --> Q["output/docs/relatorio_*.docx"]
 ```
 
@@ -127,6 +133,8 @@ flowchart TD
 ```text
 resources multicanais/
 ├── accounts.json                  # Mapeamento oficial de IDs de conta AWS -> Nomes amigáveis
+├── catalog/                       # Catálogo declarativo de aplicações e governança
+│   └── applications.json          # Squads, tech leads/owners, criticidade e match patterns
 ├── contas/
 │   └── multicanais-dev/           # CSVs exportados da conta AWS analisada
 ├── docs/
@@ -139,11 +147,13 @@ resources multicanais/
 │   ├── markdowns/                 # Relatórios executivos e técnicos em Markdown (.md)
 │   │   ├── relatorio_<conta>.md
 │   │   ├── relatorio_oportunidades_finops_<conta>.md
-│   │   └── relatorio_recursos_orfaos_<conta>.md
+│   │   ├── relatorio_recursos_orfaos_<conta>.md
+│   │   └── relatorio_arquitetura_aplicacoes_<conta>.md
 │   └── docs/                      # Relatórios formatados para Word (.docx)
 │       ├── relatorio_<conta>.docx
 │       ├── relatorio_oportunidades_finops_<conta>.docx
-│       └── relatorio_recursos_orfaos_<conta>.docx
+│       ├── relatorio_recursos_orfaos_<conta>.docx
+│       └── relatorio_arquitetura_aplicacoes_<conta>.docx
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                    # Entrypoint CLI do pipeline
@@ -154,26 +164,32 @@ resources multicanais/
 │   ├── finops.py                  # Heurísticas de classificação FinOps por recurso
 │   ├── finops_analyzer.py         # Análise de oportunidades, estimativas e playbooks
 │   ├── orphan_analyzer.py         # Auditoria de recursos órfãos nos 5 domínios e playbooks
+│   ├── topology_analyzer.py       # Motor de classificação em camadas, resolução de ownership e grafo de conexões
 │   └── exporters/
 │       ├── __init__.py
-│       ├── excel.py               # Geração do workbook Excel estilizado
+│       ├── excel.py               # Geração do workbook Excel estilizado (incluindo Topologia & Arquitetura)
 │       ├── markdown.py            # Geração do relatório técnico de inventário
 │       ├── finops_report.py       # Geração do relatório executivo de FinOps
 │       ├── orphan_report.py       # Geração do relatório de recursos órfãos
+│       ├── topology_report.py     # Geração do relatório executivo/técnico de topologia com diagramas Mermaid
 │       └── docx_report.py         # Conversão e estilização executiva em Word (.docx)
-├── tests/                         # Suite de testes unitários e de integração
-│   ├── test_ingestion.py
+├── tests/                         # Suite de testes unitários e de integração (87 testes)
+│   ├── test_account_resolver.py
 │   ├── test_correlator.py
+│   ├── test_docx_exporter.py
+│   ├── test_e2e.py
+│   ├── test_excel_exporter.py
 │   ├── test_finops.py
 │   ├── test_finops_analyzer.py
-│   ├── test_orphan_analyzer.py
-│   ├── test_excel_exporter.py
-│   ├── test_markdown_exporter.py
 │   ├── test_finops_report_exporter.py
-│   ├── test_orphan_report_exporter.py
-│   ├── test_docx_exporter.py
+│   ├── test_ingestion.py
+│   ├── test_markdown_exporter.py
 │   ├── test_models.py
-│   └── test_e2e.py
+│   ├── test_orphan_analyzer.py
+│   ├── test_orphan_report_exporter.py
+│   ├── test_topology_analyzer.py
+│   ├── test_topology_models.py
+│   └── test_topology_report_exporter.py
 └── README.md
 ```
 
@@ -228,6 +244,7 @@ python -m src.main [opções]
 | `--input-dir` | String | `./` | Caminho do diretório contendo os arquivos CSV exportados da AWS. |
 | `--output-dir` | String | `./output` | Diretório onde os relatórios e planilhas gerados serão gravados. |
 | `--account` | String | `""` | Identificador ou apelido da conta AWS. Se omitido, é detectado automaticamente a partir da coluna `Conta da AWS` dos CSVs. |
+| `--catalog` | String | `""` | Caminho para o catálogo declarativo de aplicações e governança (ex.: `catalog/applications.json`). Se omitido, o pipeline busca automaticamente por `catalog/applications.json` ou `applications.json`. |
 
 ---
 
@@ -254,6 +271,13 @@ Para processar outra conta AWS, basta colocar os CSVs exportados em uma nova pas
 python -m src.main --input-dir "./contas/conta-producao" --output-dir "./output" --account "conta-producao"
 ```
 
+#### Exemplo 4: Auditoria Enriquecida com Catálogo de Aplicações
+Permite especificar explicitamente um arquivo de catálogo de governança para enriquecimento de squads, tech leads/owners e criticidade:
+
+```bash
+python -m src.main --input-dir "./contas/multicanais-dev" --catalog "./catalog/applications.json"
+```
+
 ---
 
 ### Formato dos Arquivos de Entrada
@@ -276,15 +300,16 @@ Colunas padrão reconhecidas automaticamente:
 
 ## Entregáveis Gerados
 
-Após a execução, o pipeline entrega quatro artefatos complementares no diretório de saída:
+Após a execução, o pipeline entrega cinco artefatos complementares no diretório de saída:
 
 | Arquivo | Formato | Público-Alvo | Conteúdo Principal |
 | :--- | :--- | :--- | :--- |
-| `spreadsheets/inventario_<conta>.xlsx` | Planilha Excel | Engenharia & Operações | Pasta de trabalho interativa com formatação visual, filtros automáticos e abas separadas:<br>• **Resumo Executivo** (Métricas consolidadas)<br>• **Aplicações Mapeadas** (Agrupamento por aplicação)<br>• **Inventário Completo** (Todos os recursos com colunas editáveis: *Decisão do Time*, *Responsável*, *Observações*)<br>• **Governança e Segurança** (Isolamento de Control Tower, Prisma, etc.)<br>• **Oportunidades FinOps** (Itens sinalizados para auditoria) |
+| `spreadsheets/inventario_<conta>.xlsx` | Planilha Excel | Engenharia & Operações | Pasta de trabalho interativa com formatação visual, filtros automáticos e abas separadas:<br>• **Resumo Executivo** (Métricas consolidadas)<br>• **Topologia & Arquitetura** (Mapeamento de componentes por camada funcional, squads, owners, criticidade e relações upstream/downstream)<br>• **Aplicações Mapeadas** (Agrupamento por aplicação)<br>• **Inventário Completo** (Todos os recursos com colunas editáveis: *Decisão do Time*, *Responsável*, *Observações*)<br>• **Governança e Segurança** (Isolamento de Control Tower, Prisma, etc.)<br>• **Oportunidades FinOps** (Itens sinalizados para auditoria) |
 | `markdowns/relatorio_<conta>.md` | Markdown | Liderança Técnica & Arquitetura | Relatório técnico com sumário executivo, tabela de topologia por aplicação, distribuição geográfica de recursos e catálogo de cargas de computação. |
 | `markdowns/relatorio_oportunidades_finops_<conta>.md` | Markdown | FinOps, Gestão & Diretoria | Relatório executivo com scorecards de economia estimada (mensal e anual), matriz de priorização (*Quick Wins* vs. *Projetos Estruturais*), detalhamento por pilar e playbooks copiáveis do AWS CLI. |
 | `markdowns/relatorio_recursos_orfaos_<conta>.md` | Markdown | SRE, DevOps & Infraestrutura | Relatório executivo de higienização de nuvem contendo Scorecard de desperdício mensal e anualizado, matriz de esforço x impacto, tabelas de recursos órfãos segregadas pelos 5 domínios e playbooks operacionais executáveis em Bash/AWS CLI (Playbooks 1 a 9). |
-| `docs/relatorio_*.docx` | Documento Word (.docx) | Gestão, Chamados & E-mails | Versões formatadas em `.docx` de todos os 3 relatórios executivos e técnicos salvos na subpasta `output/docs/`, com tabelas estilizadas, títulos corporativos e blocos de código prontos para anexar diretamente em tickets do Jira, ServiceNow ou comunicados por e-mail. |
+| `markdowns/relatorio_arquitetura_aplicacoes_<conta>.md` | Markdown | Arquitetura, Liderança Técnica & Squads | Relatório executivo e técnico de arquitetura com scorecard de cobertura de governança, matriz consolidada de squads/owners/criticidade, diagramas visuais Mermaid (`flowchart LR`) por aplicação e matriz de dependências upstream/downstream. |
+| `docs/relatorio_*.docx` | Documento Word (.docx) | Gestão, Chamados & E-mails | Versões formatadas em `.docx` de todos os 4 relatórios executivos e técnicos salvos na subpasta `output/docs/` (Inventário Técnico, Oportunidades FinOps, Recursos Órfãos e Topologia de Arquitetura), com tabelas estilizadas, títulos corporativos e diagramas prontos para anexar diretamente em tickets do Jira, ServiceNow ou comunicados por e-mail. |
 
 ---
 
@@ -542,6 +567,153 @@ aws elbv2 delete-target-group \
 
 ---
 
+## Topologia de Arquitetura de Aplicações e Governança (Ownership)
+
+Ambientes em nuvem complexos frequentemente sofrem com a falta de visibilidade sobre quais componentes formam cada aplicação, quais serviços se comunicam entre si e quem são os responsáveis técnicos (*owners*) por cada ativo.
+
+O **Subsistema de Topologia Arquitetural e Governança** do pipeline (`src/topology_analyzer.py` e `src/exporters/topology_report.py`) resolve esse desafio de forma automatizada:
+1. **Classifica** os recursos em 5 camadas funcionais da arquitetura moderna.
+2. **Resolve** o time responsável (*squad*), tech lead (*owner*) e nível de criticidade via catálogo declarativo, tags do CSV ou inferência semântica.
+3. **Infere** o grafo direcionado de dependências e integrações (Load Balancer ➔ Target Group ➔ Computação ➔ Filas ➔ Bancos / Storage).
+4. **Gera** diagramas visuais nativos em Mermaid (`flowchart LR`), relatórios executivos em Markdown e Word (.docx), e a aba dedicada `"Topologia & Arquitetura"` no Excel.
+
+---
+
+### 1. As 5 Camadas Funcionais da Arquitetura
+
+O motor analítico mapeia cada recurso canônico da conta para uma das 5 camadas estruturais:
+
+| Camada Funcional | Serviços AWS Cobertos | Responsabilidade Arquitetural |
+| :--- | :--- | :--- |
+| **Ingresso & Endpoints** | Application Load Balancer (`elasticloadbalancing:loadbalancer/app`), NLB, Target Groups (`elasticloadbalancing:targetgroup`), API Gateway, CloudFront, Route 53 | Entrada e terminação de tráfego, roteamento HTTP/HTTPS, terminação TLS e distribuição de carga externa/interna. |
+| **Computação & Lógica** | Instâncias EC2 (`ec2:instance`), Funções AWS Lambda (`lambda:function`), Serviços e Tarefas ECS (`ecs:service`, `ecs:task`), Elastic Beanstalk | Execução de microsserviços, processamento de regras de negócio, APIs de backend e workers computacionais. |
+| **Mensageria & Filas** | Filas SQS (`sqs:queue`), Tópicos SNS (`sns:topic`), Barramentos e Regras Amazon EventBridge (`events:rule`, `eventbridge`) | Comunicação assíncrona, filas de processamento desacoplado, barramento de eventos pub/sub e buffers de concorrência. |
+| **Banco de Dados & Cache** | Instâncias e Clusters RDS Aurora/Postgres/MySQL (`rds:db`, `rds:cluster`), Tabelas DynamoDB (`dynamodb:table`), ElastiCache Redis/Memcached (`elasticache:cluster`), MemoryDB (`memorydb:cluster`), DocumentDB | Camada de persistência relacional, NoSQL e bancos de dados em memória para cache de sessão e aceleração de leitura. |
+| **Armazenamento & Apoio** | Buckets S3 (`s3:bucket`), Segredos no Secrets Manager (`secretsmanager:secret`), Sistemas de Arquivos EFS (`elasticfilesystem:file-system`) e FSx | Armazenamento persistente de arquivos, mídias estáticas, backups, credenciais seguras e ativos de configuração. |
+
+---
+
+### 2. Resolução de Governança e Ownership (Squads e Responsáveis)
+
+Para atribuir a Squad responsável, o Tech Lead (*Owner*) e a Criticidade do negócio (Tier 1 a 3), o motor executa uma estratégia de **4 níveis de precedência rigorosa**:
+
+```mermaid
+flowchart TD
+    A["Recurso Canônico"] --> B{"1. Match no Catálogo?<br/>(catalog/applications.json)"}
+    B -- Sim --> C["Atribui Squad, Owner e Criticidade<br/>declarados no Catálogo"]
+    B -- Não --> D{"2. Tags Nativas no CSV?<br/>(squad=, team=, owner=)"}
+    D -- Sim --> E["Atribui Squad via Tag do CSV"]
+    D -- Não --> F{"3. Cluster Semântico Identificado?<br/>(correlator.py)"}
+    F -- Sim --> G["Atribui 'Squad <Nome da Aplicação>'"]
+    F -- Não --> H{"4. Heurística de Domínio"}
+    H -- "Governança" --> I["Squad Segurança & Governança"]
+    H -- "Infra Compartilhada" --> J["Squad Infraestrutura Cloud"]
+    H -- "Outros / Isolados" --> K["Squad A Definir"]
+```
+
+1. **Prioridade 1: Catálogo Declarativo (`catalog/applications.json`):**
+   Se o identificador, ARN, tags ou aplicação inferida do recurso coincidir com qualquer padrão em `match_patterns`, o recurso recebe compulsoriamente a Squad, o Tech Lead e a Criticidade configurados no catálogo.
+2. **Prioridade 2: Tags Nativas do CSV:**
+   Caso o recurso não esteja no catálogo, o analisador extrai tags como `squad=`, `team=`, `owner=` ou `responsavel=` presentes na exportação original do AWS Tag Editor.
+3. **Prioridade 3: Slug e Agrupamento Semântico (`correlator.py`):**
+   Caso o recurso pertença a um agrupamento funcional já identificado por nomenclatura (ex.: *VDO / Promoção Digital*, *WordPress / Blog*, *Canais Digitais*), assume a convenção `"Squad <Nome da Aplicação>"`.
+4. **Prioridade 4: Fallbacks Estruturados:**
+   - Recursos de macro-domínio **Governança** (Control Tower, AWS Config, Prisma, IAM) ➔ `"Squad Segurança & Governança"`.
+   - Recursos compartilhados entre múltiplas aplicações ➔ `"Squad Infraestrutura Cloud"`.
+   - Recursos soltos sem qualquer correlação ➔ `"Squad A Definir"`.
+
+---
+
+### 3. Catálogo Declarativo de Aplicações (`catalog/applications.json`)
+
+O pipeline oferece suporte a enriquecimento declarativo por arquivo JSON. Se novos sistemas forem criados ou reestruturações de squads ocorrerem, basta atualizar o catálogo sem alterar uma única linha de código:
+
+#### Esquema de Configuração (`catalog/applications.json`)
+
+```json
+{
+  "applications": {
+    "canais-digitais": {
+      "name": "Canais Digitais",
+      "squad": "Squad Canais & Portais",
+      "owner": "techlead-canais@empresa.com",
+      "criticality": "Crítica / Tier 1",
+      "match_patterns": ["canais", "multicanais", "canaisdb"],
+      "description": "Plataforma central de atendimento e portais digitais"
+    },
+    "vdo-promocao": {
+      "name": "VDO & Promoção Digital",
+      "squad": "Squad Marketing & Promoções",
+      "owner": "techlead-vdo@empresa.com",
+      "criticality": "Alta",
+      "match_patterns": ["vdo", "promo-digital", "promodb", "alb-vdo", "porto-vdo"],
+      "description": "Sistema de gestão e veiculação de promoções e campanhas"
+    },
+    "wordpress-blog": {
+      "name": "WordPress / Blog",
+      "squad": "Squad Conteúdo & Institucional",
+      "owner": "techlead-conteudo@empresa.com",
+      "criticality": "Média",
+      "match_patterns": ["wordpress", "blog"],
+      "description": "Portais de conteúdo corporativo e blogs institucionais"
+    }
+  }
+}
+```
+
+#### Uso da Flag `--catalog`
+- O arquivo pode ser customizado e informado via CLI:
+  ```bash
+  python -m src.main --input-dir "./contas/multicanais-dev" --catalog "./meu_catalogo_corporativo.json"
+  ```
+- **Fallback Automático:** Caso o parâmetro `--catalog` seja omitido, o pipeline procura de forma autônoma pelos arquivos `catalog/applications.json` e `applications.json` na raiz da execução. Se nenhum for encontrado, opera com elegância em modo puramente heurístico (*graceful degradation*).
+
+---
+
+### 4. Diagrama de Arquitetura Visual (Exemplo Mermaid)
+
+Para cada aplicação mapeada, o pipeline sintetiza um diagrama visual dinâmico com subgrafos por camada funcional, renderizável nativamente no GitHub, GitLab, Notion e em qualquer visualizador Markdown moderno:
+
+```mermaid
+flowchart LR
+  subgraph Ingress["Camada de Entrada & Endpoints"]
+    alb["alb-vdo (ALB)"]
+    tg["tg-vdo-80 (TargetGroup)"]
+  end
+  subgraph Compute["Computação & Lógica"]
+    ec2["i-0a1b2c3d (EC2 App)"]
+    lambda["vdo-image-processor (Lambda)"]
+  end
+  subgraph Messaging["Mensageria & Filas"]
+    sqs["vdo-queue (SQS)"]
+  end
+  subgraph Persistence["Banco de Dados & Storage"]
+    rds["vdo-mysql-prd (RDS Aurora)"]
+    s3["vdo-media-bucket (S3)"]
+  end
+
+  alb --> tg
+  tg --> ec2
+  ec2 --> sqs
+  sqs --> lambda
+  ec2 --> rds
+  lambda --> s3
+```
+
+---
+
+### 5. Entregáveis de Topologia e Governança
+
+A execução do pipeline consolida a análise de arquitetura em 3 entregáveis dedicados:
+
+| Artefato Gerado | Formato | Finalidade e Conteúdo |
+| :--- | :--- | :--- |
+| `markdowns/relatorio_arquitetura_aplicacoes_<conta>.md` | Markdown | **Relatório Completo de Topologia & Governança:**<br>• Scorecard executivo de aplicações, componentes e cobertura de squads.<br>• Matriz de Governança consolidada (Aplicação, Squad, Tech Lead, Criticidade, Qtd Componentes, Endpoints).<br>• Diagrama visual Mermaid (`flowchart LR`) por aplicação com nós sanitizados.<br>• Tabelas de componentes com mapeamento explícito de dependências Upstream e Downstream.<br>• Seção dedicada à infraestrutura compartilhada e componentes a classificar. |
+| `docs/relatorio_arquitetura_aplicacoes_<conta>.docx` | Documento Word | **Relatório Corporativo Formatado:**<br>• Versão `.docx` diagramada com cabeçalhos executivos, blocos de código com fundo cinza e tabelas com zebrado profissional, pronta para homologação com gerências e diretoria técnica. |
+| `spreadsheets/inventario_<conta>.xlsx`<br>(Aba `"Topologia & Arquitetura"`) | Planilha Excel | **Matriz Operacional de Engenharia:**<br>• Aba contendo 11 colunas detalhadas: *Aplicação*, *Squad Responsável*, *Tech Lead/Owner*, *Criticidade*, *ID do Componente*, *Nome Amigável*, *Serviço AWS*, *Camada Funcional*, *Região*, *Origem (Upstream)*, *Destino (Downstream)* e *ARN*.<br>• Cabeçalho azul corporativo, linhas alternadas e auto-filtro ativado em todas as colunas. |
+
+---
+
 ## Execução de Testes Automatizados
 
 O projeto adota uma cobertura abrangente com testes unitários, testes de integração de exportadores e teste ponta a ponta (*E2E*).
@@ -556,27 +728,32 @@ Exemplo de saída esperada:
 ```text
 ============================= test session starts =============================
 platform win32 -- Python 3.15.0, pytest-9.1.1, pluggy-1.7.0
-collected 63 items
+rootdir: C:\Users\andre.luiz\Documents\resources multicanais
+collected 87 items
 
-tests/test_correlator.py .......                                          [ 11%]
-tests/test_docx_exporter.py ...                                           [ 15%]
-tests/test_e2e.py ......                                                  [ 25%]
-tests/test_excel_exporter.py ...                                          [ 30%]
-tests/test_finops.py .....                                                [ 38%]
-tests/test_finops_analyzer.py ...                                         [ 42%]
-tests/test_finops_report_exporter.py ...                                  [ 47%]
-tests/test_ingestion.py ........                                          [ 60%]
-tests/test_markdown_exporter.py ....                                      [ 66%]
-tests/test_models.py .....                                                [ 74%]
-tests/test_orphan_analyzer.py ...........                                 [ 92%]
-tests/test_orphan_report_exporter.py .....                                [100%]
+tests/test_account_resolver.py ......                                    [  6%]
+tests/test_correlator.py .......                                         [ 14%]
+tests/test_docx_exporter.py ...                                          [ 18%]
+tests/test_e2e.py .........                                              [ 28%]
+tests/test_excel_exporter.py ......                                      [ 35%]
+tests/test_finops.py .....                                               [ 41%]
+tests/test_finops_analyzer.py ...                                        [ 44%]
+tests/test_finops_report_exporter.py ....                                [ 49%]
+tests/test_ingestion.py ........                                         [ 58%]
+tests/test_markdown_exporter.py .....                                    [ 64%]
+tests/test_models.py .....                                               [ 70%]
+tests/test_orphan_analyzer.py ...........                                [ 82%]
+tests/test_orphan_report_exporter.py ......                              [ 89%]
+tests/test_topology_analyzer.py .....                                    [ 95%]
+tests/test_topology_models.py .                                          [ 96%]
+tests/test_topology_report_exporter.py ...                               [100%]
 
-============================= 63 passed in 2.68s ==============================
+============================= 87 passed in 7.98s ==============================
 ```
 
 Para rodar apenas um arquivo de teste específico:
 ```bash
-python -m pytest tests/test_orphan_analyzer.py -v
+python -m pytest tests/test_topology_analyzer.py -v
 ```
 
 ---
